@@ -51,7 +51,6 @@
             overflow: hidden;
         }
 
-        /* ==================== BOARD SECTION ==================== */
         .board-section {
             display: flex;
             flex-direction: column;
@@ -87,9 +86,6 @@
             cursor: pointer;
             user-select: none;
             transition: all 0.15s;
-            width: 75px;
-            height: 75px;
-            aspect-ratio: 1;
         }
 
         .square:hover {
@@ -117,7 +113,6 @@
             background: rgba(255, 255, 100, 0.4) !important;
         }
 
-        /* ==================== EVAL BAR VERTICAL ==================== */
         .eval-bar-vertical {
             display: flex;
             flex-direction: column;
@@ -234,7 +229,6 @@
             background: #555;
         }
 
-        /* ==================== PANELS ==================== */
         .panels-container {
             display: grid;
             grid-template-columns: 1fr 1fr;
@@ -357,12 +351,6 @@
             margin: 0;
         }
 
-        .button-group {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 10px;
-        }
-
         .opening-info {
             background: rgba(0, 212, 255, 0.05);
             padding: 10px;
@@ -371,7 +359,6 @@
             font-size: 0.85em;
         }
 
-        /* ==================== RESPONSIVE ==================== */
         @media (max-width: 1400px) {
             .chessboard {
                 width: 500px;
@@ -379,8 +366,6 @@
             }
 
             .square {
-                width: 62.5px;
-                height: 62.5px;
                 font-size: 2.5em;
             }
 
@@ -424,8 +409,6 @@
             }
 
             .square {
-                width: 100%;
-                height: 100%;
                 font-size: 2em;
             }
 
@@ -592,353 +575,341 @@
         </div>
     </div>
 
-   <script>
-    const game = new Chess();
-    let selectedSquare = null;
-    let highlights = [];
-    let lastFromSquare = null;
-    let lastToSquare = null;
-    let moveCount = 0;
-    let goodMoves = 0;
-    let badMoves = 0;
-    let boardFlipped = false;
-    let aiThinking = false;
-    let playerElo = 1600;
-    let stats = { totalGames: 0, maxElo: 1600, sessions: 0 };
+    <script>
+        const game = new Chess();
+        let selectedSquare = null;
+        let highlights = [];
+        let lastFromSquare = null;
+        let lastToSquare = null;
+        let moveCount = 0;
+        let goodMoves = 0;
+        let badMoves = 0;
+        let boardFlipped = false;
+        let aiThinking = false;
+        let playerElo = 1600;
+        let stats = { totalGames: 0, maxElo: 1600, sessions: 0 };
 
-    const pieceSymbols = {
-        'P': '♙', 'R': '♖', 'N': '♘', 'B': '♗', 'Q': '♕', 'K': '♔',
-        'p': '♟', 'r': '♜', 'n': '♞', 'b': '♝', 'q': '♛', 'k': '♚'
-    };
+        const pieceSymbols = {
+            'P': '♙', 'R': '♖', 'N': '♘', 'B': '♗', 'Q': '♕', 'K': '♔',
+            'p': '♟', 'r': '♜', 'n': '♞', 'b': '♝', 'q': '♛', 'k': '♚'
+        };
 
-    const coachPhrases = {
-        excellent: ["¡Perfecto! Esa es la mejor jugada.", "Increíble, mantiene ventaja óptima."],
-        good: ["Buen movimiento, la posición mejora.", "Sigue así, buena elección."],
-        mistake: ["Cuidado, podrías perder ventaja.", "No es la mejor jugada aquí."],
-        blunder: ["¡Error grave! La posición empeora.", "Ese movimiento te pone en desventaja."]
-    };
+        const coachPhrases = {
+            excellent: ["¡Perfecto! Esa es la mejor jugada.", "Increíble, mantiene ventaja óptima."],
+            good: ["Buen movimiento, mejora tu posición.", "Sigue así, buena elección."],
+            mistake: ["Cuidado, podrías perder ventaja.", "No es la mejor jugada aquí."],
+            blunder: ["¡Error grave! Posición empeora.", "Ese movimiento te pone en desventaja."]
+        };
 
-    const openings = {
-        'rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR': 'Peón de Rey (1.e4)',
-        'rnbqkbnr/pppppppp/8/8/2P5/8/PP1PPPPP/RNBQKBNR': 'Gambito de Dama (1.c4)',
-        'rnbqkbnr/pppppppp/8/8/3P4/8/PPP1PPPP/RNBQKBNR': 'Peón de Dama (1.d4)'
-    };
+        const openings = {
+            'rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR': 'Peón de Rey (1.e4)',
+            'rnbqkbnr/pppppppp/8/8/2P5/8/PP1PPPPP/RNBQKBNR': 'Gambito de Dama (1.c4)',
+            'rnbqkbnr/pppppppp/8/8/3P4/8/PPP1PPPP/RNBQKBNR': 'Peón de Dama (1.d4)'
+        };
 
-    // ================= STOCKFISH =================
-    const engine = new Worker('stockfish.js');
-    let engineReady = false;
-    let engineBestMove = null;
-    let engineEval = null;
-
-    engine.onmessage = function(e) {
-        const msg = e.data?.trim();
-        if (!msg) return;
-
-        if (msg === 'uciok') engineReady = true;
-
-        if (msg.startsWith('bestmove')) engineBestMove = msg.split(' ')[1];
-
-        if (msg.startsWith('info') && msg.includes('score cp')) {
-            const cp = parseInt(msg.split('score cp ')[1].split(' ')[0]);
-            engineEval = cp;
-        }
-    };
-
-    function sendPositionToStockfish(fen, depth=15) {
-    if (!engineReady) engine.postMessage('uci');
-    engine.postMessage('ucinewgame');
-    engine.postMessage('position fen ' + fen);
-    engine.postMessage('go depth ' + depth);
-    engineBestMove = null;
-    engineEval = null;
-}
-
-    function getStockfishBestMove(callback) {
-        const checkInterval = setInterval(() => {
-            if (engineBestMove) {
-                clearInterval(checkInterval);
-                callback(engineBestMove, engineEval);
-            }
-        }, 30);
-    }
-
-    // ================= UI =================
-    function renderBoard() {
-        const boardEl = document.getElementById('board');
-        boardEl.innerHTML = '';
-
-        for (let row = 0; row < 8; row++) {
-            for (let col = 0; col < 8; col++) {
-                const r = boardFlipped ? 7 - row : row;
-                const c = boardFlipped ? 7 - col : col;
-                const square = String.fromCharCode(97 + c) + (8 - r);
-                const piece = game.get(square);
-
-                const squareEl = document.createElement('div');
-                squareEl.className = 'square ' + ((r + c) % 2 === 0 ? 'light' : 'dark');
-
-                if (selectedSquare === square) squareEl.classList.add('selected');
-                if (highlights.includes(square)) squareEl.classList.add('highlight');
-                if ((square === lastFromSquare || square === lastToSquare) && moveCount > 0) {
-                    squareEl.classList.add('last-move');
+        // ===================== EVALUACIÓN SIMPLE =====================
+        function evaluatePosition() {
+            const board = game.board();
+            let score = 0;
+            const pieceValues = { 'p': 1, 'n': 3, 'b': 3, 'r': 5, 'q': 9, 'k': 0 };
+            
+            for (let row of board) {
+                for (let piece of row) {
+                    if (!piece) continue;
+                    const val = pieceValues[piece.type] || 0;
+                    score += piece.color === 'w' ? val : -val;
                 }
+            }
+            return score;
+        }
 
-                if (piece) {
-                    squareEl.textContent = pieceSymbols[piece.type];
-                    squareEl.style.color = piece.color === 'w' ? '#fff' : '#000';
-                    squareEl.style.textShadow = piece.color === 'w' ? '2px 2px 4px #000' : '1px 1px 3px #fff';
+        // ===================== GET BEST MOVE =====================
+        function getBestMove(depth = 4) {
+            const moves = game.moves({ verbose: true });
+            if (!moves.length) return null;
+
+            let best = moves[0];
+            let bestScore = -Infinity;
+
+            for (let move of moves.slice(0, Math.min(moves.length, 15))) {
+                game.move(move);
+                const score = -evaluatePosition();
+                game.undo();
+
+                if (score > bestScore) {
+                    bestScore = score;
+                    best = move;
                 }
+            }
+            return best;
+        }
 
-                squareEl.addEventListener('click', () => handleSquareClick(square));
-                boardEl.appendChild(squareEl);
+        // ===================== RENDER BOARD =====================
+        function renderBoard() {
+            const boardEl = document.getElementById('board');
+            boardEl.innerHTML = '';
+
+            for (let row = 0; row < 8; row++) {
+                for (let col = 0; col < 8; col++) {
+                    const r = boardFlipped ? 7 - row : row;
+                    const c = boardFlipped ? 7 - col : col;
+                    const square = String.fromCharCode(97 + c) + (8 - r);
+                    const piece = game.get(square);
+
+                    const squareEl = document.createElement('div');
+                    squareEl.className = 'square ' + ((r + c) % 2 === 0 ? 'light' : 'dark');
+
+                    if (selectedSquare === square) squareEl.classList.add('selected');
+                    if (highlights.includes(square)) squareEl.classList.add('highlight');
+                    if ((square === lastFromSquare || square === lastToSquare) && moveCount > 0) {
+                        squareEl.classList.add('last-move');
+                    }
+
+                    if (piece) {
+                        squareEl.textContent = pieceSymbols[piece.type];
+                        squareEl.style.color = piece.color === 'w' ? '#fff' : '#000';
+                        squareEl.style.textShadow = piece.color === 'w' ? '2px 2px 4px #000' : '1px 1px 3px #fff';
+                    }
+
+                    squareEl.addEventListener('click', () => handleSquareClick(square));
+                    boardEl.appendChild(squareEl);
+                }
             }
         }
-    }
 
-    function handleSquareClick(square) {
-    if (aiThinking || game.game_over()) return;
+        // ===================== HANDLE SQUARE CLICK =====================
+        function handleSquareClick(square) {
+            if (aiThinking || game.game_over()) return;
 
-    const piece = game.get(square);
+            const piece = game.get(square);
 
-    if (selectedSquare && piece && game.get(selectedSquare).color === piece.color) {
-        // Cambiar la selección
-        selectedSquare = square;
-        highlights = game.moves({ square, verbose: true }).map(m => m.to);
-    } else if (selectedSquare) {
-        // Intentar mover la pieza seleccionada
-        const move = game.move({ from: selectedSquare, to: square, promotion: 'q' });
-        if (move) {
-            lastFromSquare = selectedSquare;
-            lastToSquare = square;
-            moveCount++;
-            selectedSquare = null;
-            highlights = [];
+            if (selectedSquare && piece && game.get(selectedSquare).color === piece.color) {
+                selectedSquare = square;
+                highlights = game.moves({ square, verbose: true }).map(m => m.to);
+            } else if (selectedSquare) {
+                const move = game.move({ from: selectedSquare, to: square, promotion: 'q' });
 
-            // Evaluar el movimiento en segundo plano (no bloquea la IA)
-            evaluateMoveQuality(move);
+                if (move) {
+                    lastFromSquare = selectedSquare;
+                    lastToSquare = square;
+                    moveCount++;
+                    selectedSquare = null;
+                    highlights = [];
 
-            // Mover la IA si aplica
-            const mode = document.getElementById('gameMode').value;
-            if ((mode === 'vs-ia' || mode === 'coach') && !game.game_over()) {
-                aiThinking = true;
-                setTimeout(makeAIMove, 1200);
+                    evaluateMoveQuality(move);
+
+                    const mode = document.getElementById('gameMode').value;
+                    if ((mode === 'vs-ia' || mode === 'coach') && !game.game_over()) {
+                        aiThinking = true;
+                        setTimeout(makeAIMove, 1200);
+                    }
+
+                    updateUI();
+                } else {
+                    selectedSquare = null;
+                    highlights = [];
+                }
+            } else if (piece && piece.color === game.turn()) {
+                selectedSquare = square;
+                highlights = game.moves({ square, verbose: true }).map(m => m.to);
             }
 
-            updateUI(); // actualiza tablero inmediatamente
-        } else {
-            selectedSquare = null;
-            highlights = [];
-        }
-    } else if (piece && piece.color === game.turn()) {
-        selectedSquare = square;
-        highlights = game.moves({ square, verbose: true }).map(m => m.to);
-    }
-
-    renderBoard();
-}
-
-// -----------------------------------------
-// Evaluación del movimiento con Stockfish
-// -----------------------------------------
-function evaluateMoveQuality(move) {
-    // Guardar FEN antes del movimiento (ya movido en el juego)
-    const fenBefore = game.fen();
-    sendPositionToStockfish(fenBefore);
-
-    getStockfishBestMove((bestUci, evalBefore) => {
-        // Aquí `move` ya está aplicado, calculamos la posición actual
-        const fenAfter = game.fen();
-        sendPositionToStockfish(fenAfter);
-
-        getStockfishBestMove((bestAfter, evalAfter) => {
-            // Clasificar el movimiento
-            const evalDiff = (evalAfter ?? 0) - (evalBefore ?? 0);
-
-            let quality;
-            if (move.san === bestUci) quality = 'excellent';
-            else if (evalDiff > -30) quality = 'good';
-            else if (evalDiff > -100) quality = 'mistake';
-            else quality = 'blunder';
-
-            // Guardar estadísticas
-            if (quality === 'excellent' || quality === 'good') goodMoves++;
-            else badMoves++;
-
-            // Mostrar mensaje del entrenador
-            giveCoachFeedback(quality);
-
-            // Actualizar stats y historial de movimientos
-            updateStats();
-            updateMoveHistory();
-        });
-    });
-}
-
-
-
-
-    function giveCoachFeedback(type) {
-        const mode = document.getElementById('gameMode').value;
-        if (mode === 'free') return;
-
-        const phrases = coachPhrases[type];
-        const phrase = phrases[Math.floor(Math.random() * phrases.length)];
-
-        const coachMsg = document.getElementById('coachMessage');
-        coachMsg.innerHTML = '<strong>' + (type === 'excellent' || type === 'good' ? '✅' : '❌') + '</strong> ' + phrase;
-        coachMsg.className = 'coach-message ' + (type === 'excellent' || type === 'good' ? 'good' : 'bad');
-    }
-
-    function makeAIMove() {
-    if (game.game_over()) return;
-    aiThinking = true;
-
-    const difficulty = parseInt(document.getElementById('difficulty').value);
-    const depthMap = {1: 5, 2: 10, 3: 15, 4: 18, 5: 20};
-    const depth = depthMap[difficulty] || 15;
-
-    sendPositionToStockfish(game.fen(), depth);
-
-    getStockfishBestMove((bestUci) => {
-        if (!bestUci) { aiThinking = false; return; }
-        const move = { from: bestUci.slice(0,2), to: bestUci.slice(2,4), promotion: 'q' };
-        game.move(move);
-        lastFromSquare = move.from;
-        lastToSquare = move.to;
-        moveCount++;
-        updateUI();
-        aiThinking = false;
-
-        if (game.game_over()) showGameOver();
-    });
-}
-
-
-    // ================= Actualización UI =================
-    function updateUI() {
-        renderBoard();
-        updateEvalBar();
-        updateLastMoveInfo();
-        updateMoveHistory();
-        updateStats();
-
-        if (game.game_over()) showGameOver();
-    }
-
-    function updateEvalBar() {
-        const board = game.board();
-        let score = 0;
-        const pieceValues = { 'p':1,'n':3,'b':3,'r':5,'q':9,'k':0 };
-        for (let row of board) for (let piece of row) if(piece) score += piece.color==='w'?pieceValues[piece.type]||0:-pieceValues[piece.type]||0;
-
-        const percentage = Math.max(0, Math.min(100, 50 + score * 5));
-        const fillEl = document.getElementById('evalBarFill');
-        fillEl.style.height = percentage + '%';
-        fillEl.textContent = Math.round(percentage) + '%';
-        document.getElementById('evalScore').textContent = Math.round(percentage) + '%';
-
-        if(percentage>55) fillEl.className='eval-bar-fill white-advantage';
-        else if(percentage<45) fillEl.className='eval-bar-fill black-advantage';
-        else fillEl.className='eval-bar-fill';
-    }
-
-    function updateLastMoveInfo() {
-        const el = document.getElementById('lastMoveInfo');
-        if (moveCount === 0) { el.style.display='none'; return; }
-        el.style.display='grid';
-        const history = game.history({ verbose:true });
-        document.getElementById('playerLastMove').textContent = history[history.length-2]?.san || '-';
-        document.getElementById('aiLastMove').textContent = history[history.length-1]?.san || '-';
-    }
-
-    function updateMoveHistory() {
-        const hist = document.getElementById('moveHistory');
-        hist.innerHTML='';
-        const history = game.history({ verbose:true });
-        history.forEach((move, idx)=>{
-            const div=document.createElement('div');
-            div.className='move-item';
-            const moveNum=Math.floor(idx/2)+1;
-            const color = idx%2===0?'⚪':'⚫';
-            div.textContent = `${color} ${moveNum}. ${move.san}`;
-            hist.appendChild(div);
-        });
-    }
-
-    function updateStats() {
-        document.getElementById('moveCount').textContent=moveCount;
-        const total=goodMoves+badMoves;
-        document.getElementById('accuracy').textContent = total>0?Math.round((goodMoves/total)*100)+'%':'0%';
-        document.getElementById('goodMoves').textContent=goodMoves;
-        document.getElementById('badMoves').textContent=badMoves;
-        document.getElementById('currentElo').textContent=playerElo;
-
-        const fen = game.fen();
-        for(const [pos,name] of Object.entries(openings)){
-            if(fen.split(' ')[0]===pos.split(' ')[0]){
-                document.getElementById('openingName').textContent=name;
-                document.getElementById('openingInfo').style.display='block';
-                break;
-            }
-        }
-    }
-
-    function showGameOver() {
-        let result='';
-        if(game.in_checkmate()) result=game.turn()==='w'?'¡Ganaste!':'Perdiste';
-        else if(game.in_draw()) result='Tablas';
-        else if(game.in_stalemate()) result='Ahogado (Stalemate)';
-        else if(game.in_threefold_repetition()) result='Repetición triple';
-        else if(game.insufficient_material()) result='Material insuficiente';
-        else return;
-
-        alert('🏁 Fin de la partida: '+result);
-    }
-
-    function resetGame() {
-        game.reset();
-        selectedSquare=null;
-        highlights=[];
-        lastFromSquare=null;
-        lastToSquare=null;
-        moveCount=0;
-        goodMoves=0;
-        badMoves=0;
-        aiThinking=false;
-
-        document.getElementById('coachMessage').innerHTML='<strong>¡Bienvenido!</strong> Realiza tu primer movimiento. El entrenador te dará consejos.';
-        document.getElementById('lastMoveInfo').style.display='none';
-        document.getElementById('openingInfo').style.display='none';
-
-        updateUI();
-    }
-
-    function undoMove() {
-        if(aiThinking) return;
-        game.undo(); game.undo();
-        moveCount=Math.max(0, moveCount-2);
-        updateUI();
-    }
-
-    function flipBoard() { boardFlipped=!boardFlipped; renderBoard(); }
-
-    function requestHint() {
-        if(game.game_over()||aiThinking) return;
-        const fen=game.fen();
-        sendPositionToStockfish(fen);
-        getStockfishBestMove((bestUci)=>{
-            if(!bestUci) return;
-            selectedSquare=bestUci.slice(0,2);
-            highlights=[bestUci.slice(2,4)];
             renderBoard();
-            const coachMsg=document.getElementById('coachMessage');
-            coachMsg.innerHTML='<strong>💡 Pista:</strong> Mueve '+bestUci;
-            coachMsg.className='coach-message good';
-        });
-    }
+        }
 
-    function analysisMode() { alert('📊 Modo análisis activado (función pendiente de implementar mejoras).'); }
+        // ===================== EVALUATE MOVE QUALITY =====================
+        function evaluateMoveQuality(move) {
+            const best = getBestMove();
+            let quality = 'mistake';
 
-    renderBoard();
-    updateUI();
-</script>
+            if (best && move.san === best.san) {
+                quality = 'excellent';
+                goodMoves++;
+            } else if (best) {
+                quality = 'good';
+                goodMoves++;
+            } else {
+                quality = 'blunder';
+                badMoves++;
+            }
+
+            giveCoachFeedback(quality);
+        }
+
+        // ===================== COACH FEEDBACK =====================
+        function giveCoachFeedback(type) {
+            const mode = document.getElementById('gameMode').value;
+            if (mode === 'free') return;
+
+            const phrases = coachPhrases[type];
+            const phrase = phrases[Math.floor(Math.random() * phrases.length)];
+
+            const coachMsg = document.getElementById('coachMessage');
+            coachMsg.innerHTML = '<strong>' + (type === 'excellent' || type === 'good' ? '✅' : '❌') + '</strong> ' + phrase;
+            coachMsg.className = 'coach-message ' + (type === 'excellent' || type === 'good' ? 'good' : 'bad');
+        }
+
+        // ===================== AI MOVE =====================
+        function makeAIMove() {
+            if (game.game_over()) { aiThinking = false; return; }
+
+            const difficulty = parseInt(document.getElementById('difficulty').value);
+            const moves = game.moves({ verbose: true });
+            if (!moves.length) { aiThinking = false; return; }
+
+            let move;
+            if (difficulty === 1) {
+                move = moves[Math.floor(Math.random() * Math.min(3, moves.length))];
+            } else if (difficulty === 2) {
+                move = moves[Math.floor(Math.random() * Math.min(8, moves.length))];
+            } else if (difficulty === 3) {
+                move = moves[Math.floor(Math.random() * Math.min(15, moves.length))];
+            } else if (difficulty === 4) {
+                move = moves[Math.floor(Math.random() * Math.min(25, moves.length))];
+            } else {
+                move = getBestMove();
+            }
+
+            game.move(move);
+            lastFromSquare = move.from;
+            lastToSquare = move.to;
+            moveCount++;
+
+            updateUI();
+            aiThinking = false;
+
+            if (game.game_over()) showGameOver();
+        }
+
+        // ===================== UPDATE UI =====================
+        function updateUI() {
+            renderBoard();
+            updateEvalBar();
+            updateLastMoveInfo();
+            updateMoveHistory();
+            updateStats();
+
+            if (game.game_over()) showGameOver();
+        }
+
+        function updateEvalBar() {
+            const score = evaluatePosition();
+            const percentage = Math.max(0, Math.min(100, 50 + score * 5));
+            const fillEl = document.getElementById('evalBarFill');
+            fillEl.style.height = percentage + '%';
+            fillEl.textContent = Math.round(percentage) + '%';
+            document.getElementById('evalScore').textContent = Math.round(percentage) + '%';
+
+            if (percentage > 55) fillEl.className = 'eval-bar-fill white-advantage';
+            else if (percentage < 45) fillEl.className = 'eval-bar-fill black-advantage';
+            else fillEl.className = 'eval-bar-fill';
+        }
+
+        function updateLastMoveInfo() {
+            const el = document.getElementById('lastMoveInfo');
+            if (moveCount === 0) { el.style.display = 'none'; return; }
+            el.style.display = 'grid';
+            const history = game.history({ verbose: true });
+            document.getElementById('playerLastMove').textContent = history[history.length - 2]?.san || '-';
+            document.getElementById('aiLastMove').textContent = history[history.length - 1]?.san || '-';
+        }
+
+        function updateMoveHistory() {
+            const hist = document.getElementById('moveHistory');
+            hist.innerHTML = '';
+            const history = game.history({ verbose: true });
+            history.forEach((move, idx) => {
+                const div = document.createElement('div');
+                div.className = 'move-item';
+                const moveNum = Math.floor(idx / 2) + 1;
+                const color = idx % 2 === 0 ? '⚪' : '⚫';
+                div.textContent = `${color} ${moveNum}. ${move.san}`;
+                hist.appendChild(div);
+            });
+        }
+
+        function updateStats() {
+            document.getElementById('moveCount').textContent = moveCount;
+            const total = goodMoves + badMoves;
+            document.getElementById('accuracy').textContent = total > 0 ? Math.round((goodMoves / total) * 100) + '%' : '0%';
+            document.getElementById('goodMoves').textContent = goodMoves;
+            document.getElementById('badMoves').textContent = badMoves;
+            document.getElementById('currentElo').textContent = playerElo;
+
+            const fen = game.fen();
+            for (const [pos, name] of Object.entries(openings)) {
+                if (fen.split(' ')[0] === pos.split(' ')[0]) {
+                    document.getElementById('openingName').textContent = name;
+                    document.getElementById('openingInfo').style.display = 'block';
+                    break;
+                }
+            }
+        }
+
+        function showGameOver() {
+            let result = '';
+            if (game.in_checkmate()) result = game.turn() === 'w' ? '¡Ganaste!' : 'Perdiste';
+            else if (game.in_draw()) result = 'Tablas';
+            else if (game.in_stalemate()) result = 'Ahogado';
+            else return;
+
+            stats.totalGames++;
+            stats.maxElo = Math.max(stats.maxElo, playerElo);
+            stats.sessions++;
+
+            alert(`🏁 Fin: ${result}\n\nPrecisión: ${document.getElementById('accuracy').textContent}`);
+        }
+
+        function resetGame() {
+            game.reset();
+            selectedSquare = null;
+            highlights = [];
+            lastFromSquare = null;
+            lastToSquare = null;
+            moveCount = 0;
+            goodMoves = 0;
+            badMoves = 0;
+            aiThinking = false;
+
+            document.getElementById('coachMessage').innerHTML = '<strong>¡Bienvenido!</strong> Realiza tu primer movimiento. El entrenador te dará consejos.';
+            document.getElementById('lastMoveInfo').style.display = 'none';
+            document.getElementById('openingInfo').style.display = 'none';
+
+            updateUI();
+        }
+
+        function undoMove() {
+            if (aiThinking) return;
+            game.undo();
+            game.undo();
+            moveCount = Math.max(0, moveCount - 2);
+            updateUI();
+        }
+
+        function flipBoard() {
+            boardFlipped = !boardFlipped;
+            renderBoard();
+        }
+
+        function requestHint() {
+            if (game.game_over() || aiThinking) return;
+            const best = getBestMove(6);
+            if (best) {
+                selectedSquare = best.from;
+                highlights = [best.to];
+                renderBoard();
+                const coachMsg = document.getElementById('coachMessage');
+                coachMsg.innerHTML = '<strong>💡 Pista:</strong> ' + best.san;
+                coachMsg.className = 'coach-message good';
+            }
+        }
+
+        function analysisMode() {
+            alert('📊 Modo análisis: Función pendiente de implementar.');
+        }
+
+        renderBoard();
+        updateUI();
+    </script>
+</body>
+</html>
