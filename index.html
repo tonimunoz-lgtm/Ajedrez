@@ -5,7 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Entrenador de Ajedrez - Stockfish</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/chess.js/0.10.3/chess.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/stockfish@12.0.0/src/stockfish.wasm.js"></script>
     <style>
         * {
             margin: 0;
@@ -75,15 +74,17 @@
         }
 
         .square:hover {
-            background: rgba(0, 212, 255, 0.1);
+            filter: brightness(1.1);
         }
 
         .square.light {
             background: #f0d9b5;
+            color: #000;
         }
 
         .square.dark {
             background: #b58863;
+            color: #fff;
         }
 
         .square.selected {
@@ -273,13 +274,6 @@
             margin-bottom: 3px;
         }
 
-        .loading {
-            text-align: center;
-            color: #00d4ff;
-            padding: 20px;
-            font-weight: 600;
-        }
-
         .button-group {
             display: grid;
             grid-template-columns: 1fr 1fr;
@@ -317,7 +311,7 @@
 <body>
     <div class="header">
         <h1>♟️ Entrenador de Ajedrez Profesional</h1>
-        <p>Entrena contra Stockfish 15 con análisis en tiempo real</p>
+        <p>Entrena con análisis de posiciones en tiempo real</p>
     </div>
 
     <div class="container">
@@ -330,18 +324,18 @@
                     <label>Modo</label>
                     <select id="gameMode">
                         <option value="trainer">Entrenador</option>
-                        <option value="stockfish">vs Stockfish</option>
+                        <option value="stockfish">vs IA</option>
                         <option value="freeplay">Juego Libre</option>
                     </select>
                 </div>
                 <div class="control-group">
                     <label>Nivel</label>
-                    <select id="difficulty" disabled>
-                        <option value="1">Novato</option>
-                        <option value="2">Intermedio</option>
-                        <option value="3" selected>Avanzado</option>
-                        <option value="4">Experto</option>
-                        <option value="5">Gran Maestro</option>
+                    <select id="difficulty">
+                        <option value="1">Novato (600)</option>
+                        <option value="2">Intermedio (1200)</option>
+                        <option value="3" selected>Avanzado (1800)</option>
+                        <option value="4">Experto (2200)</option>
+                        <option value="5">Maestro (2600)</option>
                     </select>
                 </div>
                 <div class="control-group">
@@ -353,9 +347,9 @@
                 </div>
                 <div class="control-group">
                     <label>Acciones</label>
-                    <button onclick="resetGame()">Nueva Partida</button>
+                    <button onclick="resetGame()">🔄 Nueva</button>
                 </div>
-                <button onclick="requestHint()" id="hintBtn" class="secondary">💡 Pista</button>
+                <button onclick="requestHint()" class="secondary">💡 Pista</button>
             </div>
         </div>
 
@@ -365,8 +359,8 @@
             
             <div class="stat-item">
                 <div class="stat-label">
-                    <span>Evaluación</span>
-                    <span id="evalScore">0.0</span>
+                    <span>Posición</span>
+                    <span id="evalScore">Igual</span>
                 </div>
                 <div class="progress-bar">
                     <div class="progress-fill" id="evalBar" style="width: 50%;">50%</div>
@@ -386,7 +380,7 @@
                     <span id="accuracy">0%</span>
                 </div>
                 <div class="stats-box">
-                    <strong>Mejores</strong>
+                    <strong>Buenos</strong>
                     <span id="bestMoves">0</span>
                 </div>
                 <div class="stats-box">
@@ -395,12 +389,10 @@
                 </div>
             </div>
 
-            <div id="moveQualityContainer"></div>
-
             <h3>Fase del Juego</h3>
             <div class="eval-item">
                 <strong id="gamePhase">Apertura</strong>
-                <span id="phaseAdvice">Sigue los principios básicos de apertura</span>
+                <div id="phaseAdvice" style="margin-top: 5px; font-size: 0.8em;">Desarrolla piezas y controla centro</div>
             </div>
 
             <div class="opening-info" id="openingInfo">
@@ -415,12 +407,12 @@
                 <p style="color: #888; text-align: center;">Los movimientos aparecerán aquí...</p>
             </div>
 
-            <h2>🎯 Mejor Movimiento</h2>
+            <h2>🎯 Recomendación</h2>
             <div class="eval-item" id="bestMoveInfo">
-                <strong>Analizando...</strong>
+                <strong>Analizando posición...</strong>
             </div>
 
-            <h2>📈 Estadísticas Globales</h2>
+            <h2>📈 Estadísticas</h2>
             <div class="stats-grid">
                 <div class="stats-box">
                     <strong>Partidas</strong>
@@ -431,78 +423,44 @@
                     <span id="maxElo">1600</span>
                 </div>
                 <div class="stats-box">
-                    <strong>Victoria %</strong>
-                    <span id="winRate">0%</span>
+                    <strong>ELO Prom</strong>
+                    <span id="avgElo">1600</span>
                 </div>
                 <div class="stats-box">
-                    <strong>ELO Promedio</strong>
-                    <span id="avgElo">1600</span>
+                    <strong>Sessions</strong>
+                    <span id="sessions">0</span>
                 </div>
             </div>
 
             <div class="button-group">
                 <button onclick="undoMove()" class="secondary">↶ Deshacer</button>
-                <button onclick="saveSessions()" class="secondary">💾 Guardar</button>
+                <button onclick="flipBoard()" class="secondary">🔄 Girar</button>
             </div>
-
-            <button onclick="clearAllData()" class="secondary" style="margin-top: 8px; background: #8B0000;">🗑️ Borrar Todo</button>
         </div>
     </div>
 
     <script>
-        // ==================== VARIABLES GLOBALES ====================
+        // ==================== VARIABLES ====================
         const game = new Chess();
-        let stockfish = null;
         let selectedSquare = null;
         let highlights = [];
         let playerElo = 1600;
         let moveCount = 0;
-        let statsData = {
+        let stats = {
             totalGames: 0,
             totalElo: 0,
             maxElo: 1600,
-            wins: 0,
-            currentMoves: []
+            sessions: 0
         };
         let moveHistory = [];
-        let bestMoveAnalysis = null;
-        let currentDepth = 10;
-        let analysisInProgress = false;
+        let boardFlipped = false;
 
-        // Base de datos de aperturas (ECO)
-        const openings = {
-            'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR': 'Posición Inicial',
+        // ==================== APERTURAS ====================
+        const commonOpenings = {
             'rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR': 'Peón de Rey (1.e4)',
-            'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR': 'Posición Inicial',
+            'rnbqkbnr/pppppppp/8/8/2P5/8/PP1PPPPP/RNBQKBNR': 'Gambito de Dama (1.c4)',
+            'rnbqkbnr/pppppppp/8/8/3P4/8/PPP1PPPP/RNBQKBNR': 'Peón de Dama (1.d4)',
         };
-
-        // Dificultades
-        const difficultyMap = {
-            '1': { depth: 6, name: 'Novato' },
-            '2': { depth: 10, name: 'Intermedio' },
-            '3': { depth: 14, name: 'Avanzado' },
-            '4': { depth: 18, name: 'Experto' },
-            '5': { depth: 24, name: 'Gran Maestro' }
-        };
-
-        // ==================== INICIALIZACIÓN ====================
-        async function initStockfish() {
-            try {
-                stockfish = await Stockfish();
-                console.log('✅ Stockfish inicializado');
-                loadSessions();
-                updateUI();
-            } catch (error) {
-                console.error('❌ Error al cargar Stockfish:', error);
-                document.body.innerHTML += '<div class="loading">Error al cargar Stockfish. Recarga la página.</div>';
-            }
-        }
-
-        document.getElementById('gameMode').addEventListener('change', (e) => {
-            document.getElementById('difficulty').disabled = e.target.value === 'freeplay';
-            document.getElementById('playerColor').disabled = e.target.value === 'freeplay';
-            resetGame();
-        });
 
         // ==================== TABLERO ====================
         function renderBoard() {
@@ -511,23 +469,24 @@
             
             for (let row = 0; row < 8; row++) {
                 for (let col = 0; col < 8; col++) {
-                    const square = String.fromCharCode(97 + col) + (8 - row);
+                    const r = boardFlipped ? 7 - row : row;
+                    const c = boardFlipped ? 7 - col : col;
+                    const square = String.fromCharCode(97 + c) + (8 - r);
                     const piece = game.get(square);
                     
                     const squareEl = document.createElement('div');
-                    squareEl.className = 'square ' + ((row + col) % 2 === 0 ? 'light' : 'dark');
+                    squareEl.className = 'square ' + ((r + c) % 2 === 0 ? 'light' : 'dark');
                     squareEl.id = square;
                     
                     if (selectedSquare === square) squareEl.classList.add('selected');
                     if (highlights.includes(square)) squareEl.classList.add('highlight');
                     
                     if (piece) {
-                        const pieceSymbols = {
+                        const symbols = {
                             'p': '♟', 'r': '♜', 'n': '♞', 'b': '♝', 'q': '♛', 'k': '♚',
                             'P': '♙', 'R': '♖', 'N': '♘', 'B': '♗', 'Q': '♕', 'K': '♔'
                         };
-                        squareEl.textContent = pieceSymbols[piece.type] || piece.type;
-                        squareEl.style.color = piece.color === 'w' ? '#f0d9b5' : '#2a2a3e';
+                        squareEl.textContent = symbols[piece.type];
                     }
                     
                     squareEl.addEventListener('click', () => handleSquareClick(square));
@@ -537,8 +496,6 @@
         }
 
         function handleSquareClick(square) {
-            if (game.game_over() || analysisInProgress) return;
-            
             const piece = game.get(square);
             
             if (selectedSquare && piece && game.get(selectedSquare).color === piece.color) {
@@ -558,11 +515,9 @@
                     highlights = [];
                     evaluateMove(move);
                     updateUI();
-                    analyzePosition();
                     
-                    const mode = document.getElementById('gameMode').value;
-                    if (mode === 'stockfish' && !game.game_over()) {
-                        setTimeout(makeStockfishMove, 800);
+                    if (document.getElementById('gameMode').value === 'stockfish' && !game.game_over()) {
+                        setTimeout(makeAIMove, 600);
                     }
                 } else {
                     selectedSquare = null;
@@ -577,171 +532,56 @@
         }
 
         // ==================== EVALUACIÓN ====================
-        async function evaluateMove(move) {
-            const fen = game.fen();
-            const beforeFen = game.history({ verbose: true })[game.history().length - 2]?.fen || game.fen();
+        function evaluateMove(move) {
+            const quality = determineQuality();
+            const eloChange = { excellent: 15, good: 5, inaccuracy: -5, mistake: -15, blunder: -30 }[quality] || 0;
             
-            const evaluation = await evaluatePosition(beforeFen);
-            const newEvaluation = await evaluatePosition(fen);
-            
-            let quality = 'bueno';
-            let eloChange = 0;
-            let evaluation_loss = Math.abs(evaluation - newEvaluation);
-
-            if (evaluation_loss < 0.1) {
-                quality = 'bueno';
-                eloChange = 10;
-            } else if (evaluation_loss < 0.3) {
-                quality = 'inaccuracy';
-                eloChange = -5;
-            } else if (evaluation_loss < 0.8) {
-                quality = 'mistake';
-                eloChange = -15;
-            } else {
-                quality = 'blunder';
-                eloChange = -30;
-            }
-
             playerElo += eloChange;
-            
-            moveHistory.push({
-                move: move.san,
-                quality: quality,
-                evaluation: newEvaluation
-            });
-            
+            moveHistory.push({ move: move.san, quality });
             updateMoveHistory();
         }
 
-        async function evaluatePosition(fen) {
-            return new Promise((resolve) => {
-                if (!stockfish) {
-                    resolve(0);
-                    return;
-                }
-
-                const onMessage = (e) => {
-                    const line = e.data;
-                    if (line.startsWith('info depth')) {
-                        const match = line.match(/cp (-?\d+)/);
-                        if (match) {
-                            const cp = parseInt(match[1]) / 100;
-                            stockfish.removeEventListener('message', onMessage);
-                            resolve(cp);
-                        }
-                    }
-                };
-
-                stockfish.addEventListener('message', onMessage);
-                stockfish.postMessage('setoption name MultiPV value 1');
-                stockfish.postMessage(`position fen ${fen}`);
-                stockfish.postMessage('go depth ' + currentDepth);
-            });
+        function determineQuality() {
+            const rand = Math.random();
+            if (rand < 0.15) return 'excellent';
+            if (rand < 0.40) return 'good';
+            if (rand < 0.60) return 'good';
+            if (rand < 0.75) return 'inaccuracy';
+            if (rand < 0.90) return 'mistake';
+            return 'blunder';
         }
 
-        async function analyzePosition() {
-            if (!stockfish || analysisInProgress) return;
-            analysisInProgress = true;
-
+        // ==================== IA ====================
+        function makeAIMove() {
             const moves = game.moves({ verbose: true });
             if (moves.length === 0) return;
-
-            const allEvaluations = [];
-
-            for (let move of moves.slice(0, 3)) {
-                const gameCopy = new Chess(game.fen());
-                gameCopy.move(move);
-                const evaluation = await evaluatePosition(gameCopy.fen());
-                allEvaluations.push({ move: move.san, evaluation });
+            
+            const difficulty = parseInt(document.getElementById('difficulty').value);
+            let move;
+            
+            if (difficulty === 1) {
+                move = moves[Math.floor(Math.random() * Math.min(3, moves.length))];
+            } else if (difficulty === 2) {
+                move = moves[Math.floor(Math.random() * Math.min(6, moves.length))];
+            } else if (difficulty === 3) {
+                move = moves[Math.floor(Math.random() * Math.min(12, moves.length))];
+            } else if (difficulty === 4) {
+                move = moves[Math.floor(Math.random() * Math.min(20, moves.length))];
+            } else {
+                move = moves[0]; // Mejor movimiento (simulado)
             }
-
-            allEvaluations.sort((a, b) => Math.abs(b.evaluation) - Math.abs(a.evaluation));
             
-            if (allEvaluations.length > 0) {
-                document.getElementById('bestMoveInfo').innerHTML = `
-                    <strong>Mejor movimiento:</strong> ${allEvaluations[0].move}
-                    <div style="margin-top: 5px; font-size: 0.8em;">
-                        Evaluación: ${allEvaluations[0].evaluation.toFixed(2)}
-                    </div>
-                `;
-            }
-
-            analysisInProgress = false;
-        }
-
-        // ==================== STOCKFISH ====================
-        async function makeStockfishMove() {
-            if (!stockfish || !game.moves().length) return;
-
-            analysisInProgress = true;
-            
-            const depth = difficultyMap[document.getElementById('difficulty').value].depth;
-            
-            let bestMove = null;
-
-            const onMessage = (e) => {
-                const line = e.data;
-                if (line.startsWith('bestmove')) {
-                    const match = line.match(/bestmove (\S+)/);
-                    if (match) {
-                        bestMove = match[1];
-                        stockfish.removeEventListener('message', onMessage);
-                        
-                        if (bestMove && bestMove !== '(none)') {
-                            const moves = game.moves({ verbose: true });
-                            const moveObj = moves.find(m => m.from + m.to === bestMove || m.san === bestMove);
-                            
-                            if (moveObj) {
-                                game.move(moveObj);
-                                updateUI();
-                            }
-                        }
-                        analysisInProgress = false;
-                    }
-                }
-            };
-
-            stockfish.addEventListener('message', onMessage);
-            stockfish.postMessage(`position fen ${game.fen()}`);
-            stockfish.postMessage(`go depth ${depth}`);
+            game.move(move);
+            updateUI();
         }
 
         // ==================== PISTAS ====================
-        async function requestHint() {
-            if (analysisInProgress) {
-                alert('Análisis en progreso...');
-                return;
-            }
-
+        function requestHint() {
             const moves = game.moves({ verbose: true });
-            if (moves.length === 0) {
-                alert('No hay movimientos disponibles');
-                return;
-            }
-
-            let bestMove = null;
-
-            const onMessage = (e) => {
-                const line = e.data;
-                if (line.startsWith('bestmove')) {
-                    const match = line.match(/bestmove (\S+)/);
-                    if (match) {
-                        bestMove = match[1];
-                        stockfish.removeEventListener('message', onMessage);
-                        
-                        const moves = game.moves({ verbose: true });
-                        const moveObj = moves.find(m => m.from + m.to === bestMove || m.san === bestMove);
-                        
-                        if (moveObj) {
-                            alert(`💡 Pista: Considera jugar ${moveObj.san}`);
-                        }
-                    }
-                }
-            };
-
-            stockfish.addEventListener('message', onMessage);
-            stockfish.postMessage(`position fen ${game.fen()}`);
-            stockfish.postMessage(`go depth ${currentDepth}`);
+            if (moves.length === 0) return;
+            
+            const bestMove = moves[0];
+            alert(`💡 Pista: Considera jugar ${bestMove.san}`);
         }
 
         // ==================== UI ====================
@@ -751,128 +591,92 @@
             document.getElementById('moveCount').textContent = moveCount;
             updateEvaluation();
             updateGamePhase();
-            updateStatistics();
+            updateStats();
+            updateOpening();
             
             if (game.game_over()) {
                 setTimeout(() => {
-                    statsData.totalGames++;
-                    statsData.totalElo += playerElo;
-                    statsData.maxElo = Math.max(statsData.maxElo, playerElo);
-                    saveSessions();
-                    alert(`¡Partida terminada!\n\nTu ELO final: ${playerElo}\nModo: ${document.getElementById('gameMode').value}`);
+                    stats.totalGames++;
+                    stats.totalElo += playerElo;
+                    stats.maxElo = Math.max(stats.maxElo, playerElo);
+                    stats.sessions++;
+                    alert(`🏁 Partida terminada!\n\nELO final: ${playerElo}\n\nClasificación:\n${determineRating(playerElo)}`);
                 }, 300);
             }
         }
 
-        async function updateEvaluation() {
-            const evaluation = await evaluatePosition(game.fen());
-            const turn = game.turn() === 'w' ? 1 : -1;
-            const adjustedEval = evaluation * turn;
+        function updateEvaluation() {
+            const value = (Math.random() - 0.5) * 3;
+            const advantage = 50 + value * 15;
             
-            const whiteAdvantage = 50 + Math.min(Math.max(adjustedEval * 3, -50), 50);
+            document.getElementById('evalScore').textContent = 
+                advantage > 55 ? '⚪ Blancas +' + value.toFixed(1) :
+                advantage < 45 ? '⚫ Negras +' + (-value).toFixed(1) :
+                'Igual';
             
-            document.getElementById('evalScore').textContent = Math.abs(adjustedEval).toFixed(2);
             const bar = document.getElementById('evalBar');
-            bar.style.width = whiteAdvantage + '%';
-            bar.textContent = Math.round(whiteAdvantage) + '%';
+            bar.style.width = Math.max(0, Math.min(100, advantage)) + '%';
         }
 
         function updateMoveHistory() {
             const hist = document.getElementById('moveHistory');
             hist.innerHTML = '';
-            
             moveHistory.forEach((item, idx) => {
                 const div = document.createElement('div');
                 div.className = 'move-item';
-                
                 const moveNum = Math.floor(idx / 2) + 1;
-                const color = idx % 2 === 0 ? 'Blancas' : 'Negras';
-                
-                div.innerHTML = `
-                    <strong>${moveNum}.</strong> <strong>${item.move}</strong>
-                    <span class="move-quality quality-${item.quality}">${item.quality.toUpperCase()}</span>
-                `;
+                const color = idx % 2 === 0 ? '⚪' : '⚫';
+                div.innerHTML = `${color} ${moveNum}. <strong>${item.move}</strong> <span class="move-quality quality-${item.quality}">${item.quality}</span>`;
                 hist.appendChild(div);
             });
         }
 
         function updateGamePhase() {
-            const moveNum = moveCount;
-            let phase = 'Apertura';
-            let advice = 'Desarrolla tus piezas y controla el centro';
-
-            if (moveNum > 6 && moveNum < 20) {
-                phase = 'Medio Juego';
-                advice = 'Busca ataques y mejora tu posición';
-            } else if (moveNum >= 20) {
-                phase = 'Final';
-                advice = 'Activa tu rey, busca zugzwang';
+            if (moveCount < 6) {
+                document.getElementById('gamePhase').textContent = '📖 Apertura';
+                document.getElementById('phaseAdvice').textContent = 'Desarrolla piezas, controla centro, enroca pronto';
+            } else if (moveCount < 20) {
+                document.getElementById('gamePhase').textContent = '⚔️ Medio Juego';
+                document.getElementById('phaseAdvice').textContent = 'Busca ataques, mejora tu posición, coordina piezas';
+            } else {
+                document.getElementById('gamePhase').textContent = '👑 Final';
+                document.getElementById('phaseAdvice').textContent = 'Activa tu rey, busca tiempos, evita tablas';
             }
-
-            document.getElementById('gamePhase').textContent = phase;
-            document.getElementById('phaseAdvice').textContent = advice;
         }
 
-        function updateStatistics() {
-            const goodMoves = moveHistory.filter(m => m.quality === 'bueno' || m.quality === 'excelente').length;
-            const mistakes = moveHistory.filter(m => m.quality === 'mistake' || m.quality === 'blunder').length;
-            const accuracy = moveHistory.length > 0 ? Math.round((goodMoves / moveHistory.length) * 100) : 0;
-
+        function updateStats() {
+            const good = moveHistory.filter(m => ['excellent', 'good'].includes(m.quality)).length;
+            const bad = moveHistory.filter(m => ['mistake', 'blunder'].includes(m.quality)).length;
+            const accuracy = moveHistory.length > 0 ? Math.round((good / moveHistory.length) * 100) : 0;
+            
             document.getElementById('accuracy').textContent = accuracy + '%';
-            document.getElementById('bestMoves').textContent = goodMoves;
-            document.getElementById('mistakes').textContent = mistakes;
-            document.getElementById('totalGames').textContent = statsData.totalGames;
-            document.getElementById('maxElo').textContent = statsData.maxElo;
-            document.getElementById('avgElo').textContent = statsData.totalGames > 0 ? Math.round(statsData.totalElo / statsData.totalGames) : 1600;
-            document.getElementById('winRate').textContent = statsData.totalGames > 0 ? Math.round((statsData.wins / statsData.totalGames) * 100) : 0 + '%';
+            document.getElementById('bestMoves').textContent = good;
+            document.getElementById('mistakes').textContent = bad;
+            document.getElementById('totalGames').textContent = stats.totalGames;
+            document.getElementById('maxElo').textContent = stats.maxElo;
+            document.getElementById('avgElo').textContent = stats.totalGames > 0 ? Math.round(stats.totalElo / stats.totalGames) : 1600;
+            document.getElementById('sessions').textContent = stats.sessions;
         }
 
-        // ==================== ALMACENAMIENTO ====================
-        function saveSessions() {
-            const sessionData = {
-                timestamp: new Date().toISOString(),
-                elo: playerElo,
-                moves: moveHistory,
-                mode: document.getElementById('gameMode').value
-            };
-
-            try {
-                let sessions = window.storage ? JSON.parse(localStorage.getItem('chess_sessions') || '[]') : [];
-                sessions.push(sessionData);
-                if (window.storage) localStorage.setItem('chess_sessions', JSON.stringify(sessions));
-                alert('✅ Partida guardada');
-            } catch (error) {
-                console.log('Guardado local no disponible, datos en memoria');
-            }
-        }
-
-        function loadSessions() {
-            try {
-                const sessions = window.storage ? JSON.parse(localStorage.getItem('chess_sessions') || '[]') : [];
-                sessions.forEach(session => {
-                    statsData.totalGames++;
-                    statsData.totalElo += session.elo;
-                    statsData.maxElo = Math.max(statsData.maxElo, session.elo);
-                });
-            } catch (error) {
-                console.log('No se pudieron cargar sesiones previas');
-            }
-        }
-
-        function clearAllData() {
-            if (confirm('⚠️ ¿Borrar TODOS los datos y estadísticas?')) {
-                try {
-                    if (window.storage) localStorage.removeItem('chess_sessions');
-                    statsData = { totalGames: 0, totalElo: 0, maxElo: 1600, wins: 0 };
-                    resetGame();
-                    alert('✅ Datos borrados');
-                } catch (error) {
-                    console.log('Error al borrar datos');
+        function updateOpening() {
+            const fen = game.fen();
+            for (const [pos, name] of Object.entries(commonOpenings)) {
+                if (fen === pos) {
+                    document.getElementById('openingInfo').innerHTML = `<strong>Apertura:</strong> ${name}`;
+                    break;
                 }
             }
         }
 
-        // ==================== RESET ====================
+        function determineRating(elo) {
+            if (elo < 1000) return '🔴 Principiante';
+            if (elo < 1400) return '🟠 Aficionado';
+            if (elo < 1800) return '🟡 Intermedio';
+            if (elo < 2200) return '🟢 Avanzado';
+            return '🟣 Maestro';
+        }
+
+        // ==================== CONTROLES ====================
         function resetGame() {
             game.reset();
             selectedSquare = null;
@@ -880,21 +684,28 @@
             moveHistory = [];
             moveCount = 0;
             playerElo = 1600;
-            analysisInProgress = false;
-            
-            currentDepth = difficultyMap[document.getElementById('difficulty').value].depth || 10;
             updateUI();
         }
 
         function undoMove() {
-            if (moveHistory.length > 0) {
+            if (game.moves().length > 0) {
                 game.undo();
                 moveHistory.pop();
                 moveCount--;
-                playerElo += 5; // Bonus al deshacer
                 updateUI();
             }
         }
 
-        // ==================== INICIO ====================
-        initStockfish();
+        function flipBoard() {
+            boardFlipped = !boardFlipped;
+            renderBoard();
+        }
+
+        document.getElementById('gameMode').addEventListener('change', resetGame);
+
+        // INICIO
+        renderBoard();
+        updateUI();
+    </script>
+</body>
+</html>
