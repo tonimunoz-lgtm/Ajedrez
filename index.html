@@ -12,13 +12,17 @@
             box-sizing: border-box;
         }
 
+        html, body {
+            width: 100%;
+            height: 100%;
+        }
+
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             background: linear-gradient(135deg, #1e1e2e 0%, #2d2d44 100%);
             color: #fff;
             display: flex;
             flex-direction: column;
-            height: 100vh;
             overflow: hidden;
         }
 
@@ -27,6 +31,7 @@
             text-align: center;
             background: rgba(0, 0, 0, 0.3);
             border-bottom: 2px solid #00d4ff;
+            flex-shrink: 0;
         }
 
         .header h1 {
@@ -38,7 +43,7 @@
             background-clip: text;
         }
 
-        .main-content {
+        .main-container {
             display: flex;
             flex: 1;
             gap: 20px;
@@ -46,7 +51,7 @@
             overflow: hidden;
         }
 
-       /* ==================== BOARD SECTION ==================== */
+        /* ==================== BOARD SECTION ==================== */
         .board-section {
             display: flex;
             flex-direction: column;
@@ -228,6 +233,7 @@
         button.secondary:hover {
             background: #555;
         }
+
         /* ==================== PANELS ==================== */
         .panels-container {
             display: grid;
@@ -585,6 +591,7 @@
             </div>
         </div>
     </div>
+
     <script>
         const game = new Chess();
         let selectedSquare = null;
@@ -596,44 +603,39 @@
         let aiThinking = false;
         let moveCount = 0;
         let goodMoves = 0;
+        let badMoves = 0;
+        let playerElo = 1600;
+        let stats = { totalGames: 0, maxElo: 1600, sessions: 0 };
 
         const pieceSymbols = {
             'P': '♙', 'R': '♖', 'N': '♘', 'B': '♗', 'Q': '♕', 'K': '♔',
             'p': '♟', 'r': '♜', 'n': '♞', 'b': '♝', 'q': '♛', 'k': '♚'
         };
 
-        // Frases del entrenador en castellano
         const coachPhrases = {
             good: [
-                "¡Excelente movimiento! Has controlado el centro.",
-                "Muy bien, has mejorado tu posición.",
-                "Buena jugada, tus piezas están mejor coordinadas.",
+                "¡Excelente! Has controlado el centro.",
+                "Muy bien, mejoras tu posición.",
+                "Buena jugada, piezas bien coordinadas.",
                 "Perfecto, mantienes la iniciativa.",
                 "¡Bien visto! Ese era el movimiento correcto."
             ],
             bad: [
-                "Cuidado, ese movimiento debilita tu posición.",
-                "No es la mejor opción. Considera otros movimientos.",
-                "Ese movimiento pierde material sin compensación.",
+                "Cuidado, debilitas tu posición.",
+                "No es la mejor opción aquí.",
+                "Ese movimiento pierde ventaja.",
                 "Deberías proteger mejor tus piezas.",
-                "¡Error! Eso te pone en desventaja."
-            ],
-            opening: [
-                "En la apertura, controla el centro con peones.",
-                "Desarrolla tus piezas menores antes de enrocar.",
-                "Enroca pronto para poner tu rey en seguridad.",
-                "Mueve cada pieza una sola vez en la apertura.",
-                "No saques la reina demasiado pronto."
+                "Error: Te pone en desventaja."
             ]
         };
 
         const openings = {
-            'rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR': 'Peón de Rey',
-            'rnbqkbnr/pppppppp/8/8/2P5/8/PP1PPPPP/RNBQKBNR': 'Gambito de Dama',
-            'rnbqkbnr/pppppppp/8/8/3P4/8/PPP1PPPP/RNBQKBNR': 'Peón de Dama'
+            'rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR': 'Peón de Rey (1.e4)',
+            'rnbqkbnr/pppppppp/8/8/2P5/8/PP1PPPPP/RNBQKBNR': 'Gambito de Dama (1.c4)',
+            'rnbqkbnr/pppppppp/8/8/3P4/8/PPP1PPPP/RNBQKBNR': 'Peón de Dama (1.d4)'
         };
 
-        function evaluateSimple() {
+        function evaluatePosition() {
             const board = game.board();
             let score = 0;
             const pieceValues = { 'p': 1, 'n': 3, 'b': 3, 'r': 5, 'q': 9, 'k': 0 };
@@ -657,7 +659,7 @@
 
             for (let move of moves.slice(0, Math.min(30, moves.length))) {
                 game.move(move);
-                const score = -evaluateSimple();
+                const score = -evaluatePosition();
                 game.undo();
 
                 if (score > bestScore) {
@@ -746,6 +748,7 @@
                 goodMoves++;
                 giveCoachFeedback('good');
             } else {
+                badMoves++;
                 giveCoachFeedback('bad');
             }
         }
@@ -758,7 +761,7 @@
             const phrase = phrases[Math.floor(Math.random() * phrases.length)];
             
             const coachMsg = document.getElementById('coachMessage');
-            coachMsg.textContent = phrase;
+            coachMsg.innerHTML = '<strong>' + (type === 'good' ? '✅' : '❌') + '</strong>' + phrase;
             coachMsg.className = 'coach-message ' + (type === 'good' ? 'good' : 'bad');
         }
 
@@ -791,14 +794,18 @@
 
             updateUI();
             aiThinking = false;
+
+            if (game.game_over()) {
+                showGameOver();
+            }
         }
 
         function updateUI() {
             renderBoard();
             updateEvalBar();
             updateLastMoveInfo();
+            updateMoveHistory();
             updateStats();
-            showSuggestion();
 
             if (game.game_over()) {
                 showGameOver();
@@ -806,12 +813,14 @@
         }
 
         function updateEvalBar() {
-            const score = evaluateSimple();
-            const percentage = 50 + Math.max(-40, Math.min(40, score / 2));
+            const score = evaluatePosition();
+            const percentage = Math.max(0, Math.min(100, 50 + score * 5));
+            
             const fillEl = document.getElementById('evalBarFill');
-
             fillEl.style.height = percentage + '%';
             fillEl.textContent = Math.round(percentage) + '%';
+
+            document.getElementById('evalScore').textContent = Math.round(percentage) + '%';
 
             if (percentage > 55) {
                 fillEl.className = 'eval-bar-fill white-advantage';
@@ -829,106 +838,51 @@
             }
 
             document.getElementById('lastMoveInfo').style.display = 'grid';
-            const lastMove = game.history({ verbose: true }).slice(-1)[0];
-            if (lastMove) {
-                const isPlayerMove = moveCount % 2 === 1;
-                if (isPlayerMove) {
-                    document.getElementById('playerLastMove').textContent = lastMove.san;
-                } else {
-                    document.getElementById('aiLastMove').textContent = lastMove.san;
-                }
+            const history = game.history({ verbose: true });
+            if (history.length > 0) {
+                document.getElementById('playerLastMove').textContent = history[history.length - 2]?.san || '-';
+                document.getElementById('aiLastMove').textContent = history[history.length - 1]?.san || '-';
             }
         }
 
-        function showSuggestion() {
-            const mode = document.getElementById('gameMode').value;
-            if (mode === 'free' || game.turn() === 'b') return;
-
-            const best = getBestMove();
-            if (!best) return;
-
-            const suggestionBox = document.getElementById('suggestionBox');
-            document.getElementById('suggestionMove').textContent = best.san;
+        function updateMoveHistory() {
+            const hist = document.getElementById('moveHistory');
+            hist.innerHTML = '';
+            const history = game.history({ verbose: true });
             
-            const reasons = [
-                'Mejora tu posición',
-                'Controla el centro',
-                'Protege tus piezas',
-                'Crea amenazas',
-                'Es el movimiento más fuerte'
-            ];
-            document.getElementById('suggestionReason').textContent = reasons[Math.floor(Math.random() * reasons.length)];
-            suggestionBox.style.display = 'block';
+            history.forEach((move, idx) => {
+                const div = document.createElement('div');
+                div.className = 'move-item';
+                const moveNum = Math.floor(idx / 2) + 1;
+                const color = idx % 2 === 0 ? '⚪' : '⚫';
+                div.textContent = `${color} ${moveNum}. ${move.san}`;
+                hist.appendChild(div);
+            });
         }
 
         function updateStats() {
             document.getElementById('moveCount').textContent = moveCount;
-            const accuracy = moveCount > 0 ? Math.round((goodMoves / (moveCount / 2)) * 100) : 0;
-            document.getElementById('accuracy').textContent = Math.min(100, accuracy) + '%';
-
+            const total = goodMoves + badMoves;
+            const accuracy = total > 0 ? Math.round((goodMoves / total) * 100) : 0;
+            document.getElementById('accuracy').textContent = accuracy + '%';
+            document.getElementById('goodMoves').textContent = goodMoves;
+            document.getElementById('badMoves').textContent = badMoves;
+            document.getElementById('currentElo').textContent = playerElo;
+            
             const fen = game.fen();
             for (const [pos, name] of Object.entries(openings)) {
-                if (fen.startsWith(pos.split(' ')[0])) {
-                    const openingEl = document.getElementById('openingInfo');
+                if (fen.split(' ')[0] === pos.split(' ')[0]) {
                     document.getElementById('openingName').textContent = name;
-                    openingEl.style.display = 'block';
+                    document.getElementById('openingInfo').style.display = 'block';
                     break;
                 }
             }
         }
 
         function showGameOver() {
-            const modal = document.getElementById('gameOverModal');
-            const title = document.getElementById('modalTitle');
-            const text = document.getElementById('modalText');
-
+            let result = '';
             if (game.in_checkmate()) {
-                title.textContent = game.turn() === 'w' ? '¡Ganaste!' : 'Perdiste';
-                text.textContent = `Jaque mate${moveCount > 0 ? ' en ' + moveCount + ' movimientos' : ''}`;
+                result = game.turn() === 'w' ? '¡Ganaste!' : 'Perdiste';
             } else if (game.in_draw()) {
-                title.textContent = 'Tablas';
-                text.textContent = 'La partida ha terminado en tablas';
+                result = 'Tablas';
             } else {
-                title.textContent = 'Partida Terminada';
-                text.textContent = 'El juego ha terminado';
-            }
-
-            modal.classList.add('active');
-        }
-
-        function requestHint() {
-            const best = getBestMove();
-            if (best) alert(`💡 Pista: ${best.san}`);
-        }
-
-        function resetGame() {
-            game.reset();
-            selectedSquare = null;
-            highlights = [];
-            lastFromSquare = null;
-            lastToSquare = null;
-            moveHistory = [];
-            moveCount = 0;
-            goodMoves = 0;
-            aiThinking = false;
-            document.getElementById('gameOverModal').classList.remove('active');
-            updateUI();
-        }
-
-        function undoMove() {
-            if (moveCount > 0) {
-                game.undo();
-                moveCount--;
-                updateUI();
-            }
-        }
-
-        function analysisMode() {
-            alert('📊 Análisis de partida: Próximamente se agregará pantalla de análisis detallado con recomendaciones');
-        }
-
-        renderBoard();
-        updateUI();
-    </script>
-</body>
-</html>
