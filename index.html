@@ -730,47 +730,21 @@
         </div>
     </div>
 
-   <script src="https://cdn.jsdelivr.net/npm/@mliebelt/pgn-parser@1.0.2/stockfish.js"></script>
-
-<script>
-const game = new Chess();
-let selectedSquare = null;
-let highlights = [];
-let lastFromSquare = null;
-let lastToSquare = null;
-let moveCount = 0;
-let goodMoves = 0;
-let badMoves = 0;
-let boardFlipped = false;
-let aiThinking = false;
-let lastEval = 0;
-
-// ===================== INICIAR STOCKFISH =====================
-const stockfish = new Worker('https://cdn.jsdelivr.net/npm/stockfish/src/stockfish.js');
-let stockfishReady = false;
-
-stockfish.onmessage = function(event){
-    const line = event.data;
-    if(line === 'uciok') stockfishReady = true;
-    if(line.startsWith('bestmove')) {
-        const move = line.split(' ')[1];
-        if(move && !game.game_over()){
-            const m = game.move({from: move.slice(0,2), to: move.slice(2,4), promotion:'q'});
-            lastFromSquare = m.from;
-            lastToSquare = m.to;
-            moveCount++;
-            aiThinking = false;
-            updateUI();
-        }
-    }
-};
-
-function makeAIMove() {
-    if(game.game_over() || !stockfishReady) return;
-    aiThinking = true;
-    stockfish.postMessage('position fen ' + game.fen());
-    stockfish.postMessage('go depth 15');
-}
+    <script>
+        const game = new Chess();
+        let selectedSquare = null;
+        let highlights = [];
+        let lastFromSquare = null;
+        let lastToSquare = null;
+        let moveCount = 0;
+        let goodMoves = 0;
+        let badMoves = 0;
+        let boardFlipped = false;
+        let aiThinking = false;
+        let playerElo = 1600;
+        let lastEval = 0;
+        let moveEvals = {};
+        let stats = { totalGames: 0, maxElo: 1600, sessions: 0 };
 
         const pieceSymbols = {
             'P': '♙', 'R': '♖', 'N': '♘', 'B': '♗', 'Q': '♕', 'K': '♔',
@@ -1145,5 +1119,7 @@ function makeAIMove() {
         renderBoard();
         updateUI();
     </script>
+</body>
+</html>
 </body>
 </html>
