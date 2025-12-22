@@ -731,6 +731,7 @@
     </div>
 
 <script src="https://cdn.jsdelivr.net/npm/stockfish@16/stockfish.js"></script>
+
 <script>
 const game = new Chess();
 
@@ -745,49 +746,65 @@ let badMoves = 0;
 let boardFlipped = false;
 let aiThinking = false;
 let playerElo = 1600;
-let lastEval = 0;
 let stats = { totalGames: 0, maxElo: 1600, sessions: 0 };
+let lastEval = 0;
 
-// Stockfish
-const engine = Stockfish();
+// Stockfish como Worker
+const engine = new Worker('https://cdn.jsdelivr.net/npm/stockfish@16/stockfish.js');
 let engineReady = false;
-let engineEval = 0;     // en *centipawns*
+let engineEval = 0;
 let engineBestMove = null;
-let enginePV = "";
 
-// Inicializar Stockfish
-engine.onmessage = (event) => {
+// Recibir mensajes del motor
+engine.onmessage = function(event) {
     const line = event.data;
 
-    // Motor listo
-    if (line === "readyok") {
+    if (line === 'uciok') return;
+    if (line === 'readyok') {
         engineReady = true;
         return;
     }
 
-    // Leer evaluación en centipawns
-    if (line.includes("score cp")) {
+    // Mejor movimiento
+    if (line.startsWith('bestmove')) {
+        engineBestMove = line.split(' ')[1];
+        if (aiThinking && engineBestMove) {
+            game.move({ from: engineBestMove.slice(0,2), to: engineBestMove.slice(2,4), promotion:'q' });
+            aiThinking = false;
+            lastFromSquare = engineBestMove.slice(0,2);
+            lastToSquare = engineBestMove.slice(2,4);
+            updateUI();
+            analyzePosition();
+        }
+        return;
+    }
+
+    // Evaluación centipawns
+    if (line.includes('score cp')) {
         const match = line.match(/score cp (-?\d+)/);
         if (match) {
             engineEval = parseInt(match[1]) / 100;
+            updateEvalBar();
         }
-    }
-
-    // Línea principal PV
-    if (line.includes(" pv ")) {
-        enginePV = line.split(" pv ")[1];
-    }
-
-    // Mejor movimiento
-    if (line.startsWith("bestmove")) {
-        engineBestMove = line.split(" ")[1];
     }
 };
 
-engine.postMessage("uci");
-engine.postMessage("isready");
+// Inicializar motor
+engine.postMessage('uci');
+engine.postMessage('isready');
 
-// ---- PIEZAS Y FRASES DE ENTRENADOR ----
+// Analizar posición
+function analyzePosition() {
+    if (!engineReady) return;
+    engine.postMessage('stop');
+    engine.postMessage('position fen ' + game.fen());
+    const diff = parseInt(document.getElementById('difficulty').value);
+    let depth = diff <= 2 ? 12 : diff == 3 ? 15 : 18;
+    engine.postMessage('go depth ' + depth);
+}
+
+// ----------------------------------------
+// PIEZAS Y FRASES
 const pieceSymbols = {
     'P':'♙','R':'♖','N':'♘','B':'♗','Q':'♕','K':'♔',
     'p':'♟','r':'♜','n':'♞','b':'♝','q':'♛','k':'♚'
@@ -799,39 +816,6 @@ const coachPhrases = {
     mistake: ["Hay movimientos mejores.","No es la mejor opción aquí.","Cuidado con tu posición."],
     blunder: ["¡Error grave!","Pierdes ventaja importante.","¡Cuidado, este movimiento es malo!"]
 };
-
-// ----------------------------------------
-// Enviar posición a Stockfish
-function analyzePosition() {
-    if (!engineReady) return;
-    engine.postMessage("stop");
-    engine.postMessage("position fen " + game.fen());
-    // Depth fijo o según nivel
-    let depth = 15; // profundidad por defecto
-    const diff = parseInt(document.getElementById("difficulty").value);
-    if(diff <= 2) depth = 12;
-    if(diff == 3) depth = 15;
-    if(diff >= 4) depth = 18;
-    engine.postMessage("go depth " + depth);
-}
-
-// ----------------------------------------
-// Convertir evaluación en centipawns a probabilidad
-function cpToWinProbability(cp) {
-    // Aproximación logística
-    return 1 / (1 + Math.exp(-cp / 2.5));
-}
-
-// ----------------------------------------
-// Feedback entrenador usando Stockfish
-function evaluateMoveQuality(prevEval, newEval) {
-    const diff = newEval - prevEval;
-    if (diff < -1.5) return "blunder";
-    if (diff < -0.7) return "mistake";
-    if (diff < -0.2) return "inaccuracy";
-    if (diff > 0.5) return "excellent";
-    return "good";
-}
 
 // ----------------------------------------
 // RENDERIZAR TABLERO
@@ -851,9 +835,7 @@ function renderBoard() {
 
             if (selectedSquare === square) squareEl.classList.add("selected");
             if (highlights.includes(square)) squareEl.classList.add("highlight");
-            if ((square === lastFromSquare || square === lastToSquare) && moveCount > 0) {
-                squareEl.classList.add("last-move");
-            }
+            if ((square === lastFromSquare || square === lastToSquare) && moveCount > 0) squareEl.classList.add("last-move");
 
             if (piece) {
                 squareEl.textContent = pieceSymbols[piece.type];
@@ -887,16 +869,13 @@ function handleSquareClick(square) {
             selectedSquare = null;
             highlights = [];
 
-            // Analizar posición tras jugada
             analyzePosition();
 
-            const newEval = engineEval;
-            const quality = evaluateMoveQuality(prevEval, newEval);
-            const phrases = coachPhrases[quality];
+            const quality = evaluateMoveQuality(prevEval, engineEval);
+            const phrases = coachPhrases[quality] || coachPhrases.good;
             const phrase = phrases[Math.floor(Math.random() * phrases.length)];
-            const coachMsg = document.getElementById("coachMessage");
             const icon = (quality === "excellent" || quality === "good") ? "✅" : "❌";
-            coachMsg.innerHTML = `<strong>${icon}</strong> ${phrase}`;
+            document.getElementById("coachMessage").innerHTML = `<strong>${icon}</strong> ${phrase}`;
 
             if (quality === "excellent" || quality === "good") goodMoves++;
             else badMoves++;
@@ -904,7 +883,7 @@ function handleSquareClick(square) {
             const mode = document.getElementById("gameMode").value;
             if ((mode === "vs-ia" || mode === "coach") && !game.game_over()) {
                 aiThinking = true;
-                setTimeout(makeAIMove, 500);
+                analyzePosition();
             }
 
             updateUI();
@@ -920,33 +899,21 @@ function handleSquareClick(square) {
 }
 
 // ----------------------------------------
-// IA (Stockfish mejor jugada)
-function makeAIMove() {
-    if (game.game_over()) return;
-    engineBestMove = null;
-    analyzePosition();
-    const wait = setInterval(() => {
-        if (engineBestMove) {
-            game.move({
-                from: engineBestMove.slice(0, 2),
-                to: engineBestMove.slice(2, 4),
-                promotion: "q"
-            });
-            clearInterval(wait);
-            aiThinking = false;
-            lastFromSquare = engineBestMove.slice(0, 2);
-            lastToSquare = engineBestMove.slice(2, 4);
-            updateUI();
-            analyzePosition();
-        }
-    }, 50);
+// Evaluación de calidad
+function evaluateMoveQuality(prevEval, newEval) {
+    const diff = newEval - prevEval;
+    if (diff < -1.5) return "blunder";
+    if (diff < -0.7) return "mistake";
+    if (diff < -0.2) return "inaccuracy";
+    if (diff > 0.5) return "excellent";
+    return "good";
 }
 
 // ----------------------------------------
 // UI Helpers
 function updateEvalBar() {
     const cp = engineEval;
-    const prob = cpToWinProbability(cp);
+    const prob = 1 / (1 + Math.exp(-cp / 2.5));
     const percent = Math.round(prob * 100);
     const bar = document.getElementById("evalBarFill");
     bar.style.height = percent + "%";
@@ -993,12 +960,12 @@ function updateStats() {
     document.getElementById("sessions").textContent = stats.sessions;
 }
 
-function showGameOver() {
-    let text = "";
-    if (game.in_checkmate()) text = game.turn() === "w" ? "¡Ganaste!" : "Perdiste";
-    else if (game.in_draw()) text = "Tablas";
-    else if (game.in_stalemate()) text = "Ahogado";
-    if (text) alert(`🏁 ${text}`);
+function updateUI() {
+    renderBoard();
+    updateEvalBar();
+    updateLastMoveInfo();
+    updateMoveHistory();
+    updateStats();
 }
 
 // ----------------------------------------
@@ -1027,11 +994,12 @@ function undoMove() {
 function flipBoard() { boardFlipped = !boardFlipped; renderBoard(); }
 
 // ----------------------------------------
-// Inicializar UI al cargar
+// Inicializar
 renderBoard();
 updateUI();
 analyzePosition();
 </script>
+    
 
 </body>
 </html>
