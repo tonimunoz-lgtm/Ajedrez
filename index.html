@@ -908,12 +908,17 @@
         }
 
         function showGameOver() {
-            let result = '';
-            if (game.in_checkmate()) {
-                result = game.turn() === 'w' ? '¡Ganaste!' : 'Perdiste';
-            } else if (game.in_draw()) {
-                result = 'Tablas';
-            } else {
+    let result = '';
+    if (game.in_checkmate()) {
+        result = game.turn() === 'w' ? '¡Ganaste!' : 'Perdiste';
+    } else if (game.in_draw()) {
+        result = 'Tablas';
+    } else {
+        result = 'Partida finalizada';
+    }
+
+    alert(result);
+}
 
         function requestHint() {
             const best = getBestMove();
