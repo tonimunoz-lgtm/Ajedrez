@@ -580,14 +580,6 @@
                     
                     if (piece) {
                         squareEl.textContent = pieceSymbols[piece.type];
-                        // Colorear fichas: blancas en claro, negras en oscuro
-                        if (piece.color === 'w') {
-                            squareEl.style.color = '#f0d9b5'; // Blancas claras
-                            squareEl.style.textShadow = '1px 1px 2px #333'; // Sombra para contraste
-                        } else {
-                            squareEl.style.color = '#1a1a1a'; // Negras oscuras
-                            squareEl.style.textShadow = '1px 1px 2px #aaa'; // Sombra para contraste
-                        }
                     }
                     
                     squareEl.addEventListener('click', () => handleSquareClick(square));
