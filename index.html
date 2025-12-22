@@ -694,71 +694,70 @@
         }
     }
 
-    function handleSquareClick(square) {
-        if (aiThinking || game.game_over()) return;
+    async function handleSquareClick(square) {
+    if (aiThinking || game.game_over()) return;
 
-        const piece = game.get(square);
+    const piece = game.get(square);
 
-        if (selectedSquare && piece && game.get(selectedSquare).color === piece.color) {
-            selectedSquare = square;
-            highlights = game.moves({ square, verbose: true }).map(m => m.to);
-        } else if (selectedSquare) {
-            const move = game.move({ from: selectedSquare, to: square, promotion: 'q' });
-            if (move) {
-                lastFromSquare = selectedSquare;
-                lastToSquare = square;
-                moveCount++;
-                selectedSquare = null;
-                highlights = [];
+    if (selectedSquare && piece && game.get(selectedSquare).color === piece.color) {
+        selectedSquare = square;
+        highlights = game.moves({ square, verbose: true }).map(m => m.to);
+    } else if (selectedSquare) {
+        const move = game.move({ from: selectedSquare, to: square, promotion: 'q' });
+        if (move) {
+            lastFromSquare = selectedSquare;
+            lastToSquare = square;
+            moveCount++;
+            selectedSquare = null;
+            highlights = [];
 
-                // Evaluar movimiento usando Stockfish
-                evaluateMoveQuality(move.san);
+            // Evalúa la jugada y muestra feedback
+            await evaluateMoveQuality(move);
 
-                const mode = document.getElementById('gameMode').value;
-                if ((mode === 'vs-ia' || mode === 'coach') && !game.game_over()) {
-                    aiThinking = true;
-                    setTimeout(makeAIMove, 1200);
-                }
-            } else {
-                selectedSquare = null;
-                highlights = [];
+            const mode = document.getElementById('gameMode').value;
+            if ((mode === 'vs-ia' || mode === 'coach') && !game.game_over()) {
+                aiThinking = true;
+                setTimeout(makeAIMove, 1200);
             }
-        } else if (piece && piece.color === game.turn()) {
-            selectedSquare = square;
-            highlights = game.moves({ square, verbose: true }).map(m => m.to);
+        } else {
+            selectedSquare = null;
+            highlights = [];
         }
-
-        renderBoard();
+    } else if (piece && piece.color === game.turn()) {
+        selectedSquare = square;
+        highlights = game.moves({ square, verbose: true }).map(m => m.to);
     }
 
-    function evaluateMoveQuality(moveSAN) {
-        const fenBefore = game.fen();
-        sendPositionToStockfish(fenBefore);
+    renderBoard();
+}
 
-        getStockfishBestMove((bestUci, evalBefore) => {
-            game.move(moveSAN);
-            const fenAfter = game.fen();
-            sendPositionToStockfish(fenAfter);
+async function evaluateMoveQuality(move) {
+    const fenBefore = game.fen();
+    sendPositionToStockfish(fenBefore);
 
-            getStockfishBestMove((bestAfter, evalAfter) => {
-                game.undo();
-                const evalDiff = (evalAfter ?? 0) - (evalBefore ?? 0);
+    // Espera hasta que Stockfish responda
+    await new Promise(resolve => {
+        const check = setInterval(() => {
+            if (engineBestMove) {
+                clearInterval(check);
+                resolve();
+            }
+        }, 30);
+    });
 
-                let quality;
-                if (moveSAN === bestUci) quality = 'excellent';
-                else if (evalDiff > -30) quality = 'good';
-                else if (evalDiff > -100) quality = 'mistake';
-                else quality = 'blunder';
+    const bestUci = engineBestMove;
 
-                if (quality === 'excellent' || quality === 'good') goodMoves++;
-                else badMoves++;
+    // Clasificación simple
+    let quality = (move.san === bestUci) ? 'excellent' : 'good';
 
-                giveCoachFeedback(quality);
-                updateStats();
-                updateMoveHistory();
-            });
-        });
-    }
+    if (quality === 'excellent' || quality === 'good') goodMoves++;
+    else badMoves++;
+
+    giveCoachFeedback(quality);
+    updateStats();
+    updateMoveHistory();
+}
+
 
     function giveCoachFeedback(type) {
         const mode = document.getElementById('gameMode').value;
