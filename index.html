@@ -2,52 +2,68 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Entrenador de Ajedrez - Stockfish</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>Entrenador de Ajedrez</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/chess.js/0.10.3/chess.min.js"></script>
     <style>
         * {
             margin: 0;
             padding: 0;
             box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent;
+            -webkit-touch-callout: none;
+        }
+
+        html, body {
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
         }
 
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             background: linear-gradient(135deg, #1e1e2e 0%, #2d2d44 100%);
             color: #fff;
-            min-height: 100vh;
-            padding: 20px;
-        }
-
-        .container {
-            max-width: 1600px;
-            margin: 0 auto;
-            display: grid;
-            grid-template-columns: 1fr 1fr 1fr;
-            gap: 20px;
-            align-items: start;
+            display: flex;
+            flex-direction: column;
         }
 
         .header {
-            grid-column: 1 / -1;
+            padding: 10px 15px;
             text-align: center;
-            margin-bottom: 20px;
+            background: rgba(0, 0, 0, 0.3);
+            border-bottom: 2px solid #00d4ff;
         }
 
         .header h1 {
-            font-size: 2.5em;
-            margin-bottom: 10px;
+            font-size: 1.5em;
+            margin: 0;
             background: linear-gradient(135deg, #00d4ff, #0099ff);
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
             background-clip: text;
         }
 
-        .board-container {
+        .header p {
+            font-size: 0.8em;
+            margin: 3px 0 0 0;
+            opacity: 0.8;
+        }
+
+        .main-container {
             display: flex;
             flex-direction: column;
-            gap: 15px;
+            flex: 1;
+            overflow: hidden;
+            padding: 10px;
+            gap: 10px;
+        }
+
+        .board-section {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            flex: 0 0 auto;
         }
 
         .chessboard {
@@ -58,7 +74,9 @@
             border: 3px solid #00d4ff;
             border-radius: 8px;
             overflow: hidden;
+            width: 100%;
             aspect-ratio: 1;
+            max-width: 100vw;
         }
 
         .square {
@@ -66,42 +84,41 @@
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 2.5em;
+            font-size: 3em;
             cursor: pointer;
             user-select: none;
             position: relative;
-            transition: all 0.2s;
+            transition: all 0.1s;
+            -webkit-user-select: none;
         }
 
-        .square:hover {
-            filter: brightness(1.1);
+        .square:active {
+            filter: brightness(1.15);
         }
 
         .square.light {
             background: #f0d9b5;
-            color: #000;
         }
 
         .square.dark {
             background: #b58863;
-            color: #fff;
         }
 
         .square.selected {
             background: #baca44 !important;
-            box-shadow: inset 0 0 15px rgba(186, 202, 68, 0.6);
+            box-shadow: inset 0 0 20px rgba(186, 202, 68, 0.8);
         }
 
         .square.highlight {
-            background: rgba(186, 202, 68, 0.5) !important;
+            background: rgba(186, 202, 68, 0.6) !important;
         }
 
         .controls {
             display: grid;
             grid-template-columns: 1fr 1fr;
-            gap: 10px;
+            gap: 8px;
             background: rgba(0, 212, 255, 0.05);
-            padding: 15px;
+            padding: 12px;
             border-radius: 8px;
             border: 1px solid rgba(0, 212, 255, 0.2);
         }
@@ -109,30 +126,39 @@
         .control-group {
             display: flex;
             flex-direction: column;
-            gap: 6px;
+            gap: 4px;
         }
 
         .control-group label {
-            font-size: 0.85em;
+            font-size: 0.75em;
             color: #00d4ff;
             font-weight: 600;
         }
 
         select, button {
-            padding: 8px 12px;
+            padding: 8px 10px;
             background: #0099ff;
             color: #fff;
             border: none;
             border-radius: 6px;
             cursor: pointer;
-            font-size: 0.9em;
+            font-size: 0.85em;
             font-weight: 600;
-            transition: all 0.3s;
+            transition: all 0.2s;
+            -webkit-appearance: none;
+            appearance: none;
+        }
+
+        select {
+            background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='2'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");
+            background-repeat: no-repeat;
+            background-position: right 8px center;
+            background-size: 18px;
+            padding-right: 30px;
         }
 
         select:hover, button:hover {
-            background: #00d4ff;
-            transform: translateY(-2px);
+            background-color: #00d4ff;
         }
 
         button.secondary {
@@ -144,31 +170,40 @@
             background: #555;
         }
 
+        .panels-container {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            flex: 1;
+            overflow: hidden;
+            min-height: 0;
+        }
+
         .stats-panel {
             background: rgba(0, 212, 255, 0.05);
             border: 1px solid rgba(0, 212, 255, 0.2);
             border-radius: 8px;
-            padding: 15px;
-            max-height: 800px;
+            padding: 12px;
             overflow-y: auto;
+            font-size: 0.85em;
         }
 
         .stat-item {
-            margin-bottom: 15px;
+            margin-bottom: 12px;
         }
 
         .stat-label {
             color: #00d4ff;
             font-weight: 600;
-            margin-bottom: 6px;
+            margin-bottom: 4px;
             display: flex;
             justify-content: space-between;
-            font-size: 0.9em;
+            font-size: 0.85em;
         }
 
         .progress-bar {
             width: 100%;
-            height: 25px;
+            height: 20px;
             background: #2a2a3e;
             border-radius: 6px;
             overflow: hidden;
@@ -181,33 +216,35 @@
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 0.8em;
+            font-size: 0.7em;
             font-weight: 600;
             transition: width 0.3s ease;
+            color: #000;
         }
 
         .eval-item {
             background: rgba(255, 255, 255, 0.05);
-            padding: 10px;
+            padding: 8px;
             border-radius: 6px;
             border-left: 3px solid #00d4ff;
-            font-size: 0.85em;
-            margin-bottom: 10px;
+            font-size: 0.8em;
+            margin-bottom: 8px;
+            line-height: 1.3;
         }
 
         .eval-item strong {
             color: #00d4ff;
             display: block;
-            margin-bottom: 3px;
+            margin-bottom: 2px;
         }
 
         .move-quality {
             display: inline-block;
-            padding: 4px 8px;
-            border-radius: 4px;
+            padding: 2px 6px;
+            border-radius: 3px;
             font-weight: 600;
-            font-size: 0.75em;
-            margin-top: 5px;
+            font-size: 0.65em;
+            margin-top: 3px;
         }
 
         .quality-excellent { background: #00ff00; color: #000; }
@@ -218,46 +255,38 @@
         .quality-brilliant { background: #ff00ff; color: #fff; }
 
         .move-history {
-            max-height: 250px;
+            max-height: 200px;
             overflow-y: auto;
             background: rgba(255, 255, 255, 0.02);
-            padding: 10px;
+            padding: 8px;
             border-radius: 6px;
             border: 1px solid rgba(0, 212, 255, 0.2);
-            margin-top: 10px;
-            font-size: 0.85em;
+            margin-top: 8px;
+            font-size: 0.75em;
         }
 
         .move-item {
-            padding: 6px;
+            padding: 4px;
             background: rgba(0, 212, 255, 0.1);
-            margin-bottom: 6px;
+            margin-bottom: 4px;
             border-radius: 4px;
             border-left: 3px solid #00d4ff;
-        }
-
-        .opening-info {
-            background: rgba(0, 212, 255, 0.05);
-            padding: 12px;
-            border-radius: 6px;
-            border-left: 4px solid #00d4ff;
-            margin-top: 10px;
-            font-size: 0.85em;
-            line-height: 1.4;
         }
 
         .elo-display {
             font-size: 1.8em;
             font-weight: 700;
             color: #00d4ff;
+            text-align: center;
+            margin: 8px 0;
         }
 
         .stats-grid {
             display: grid;
             grid-template-columns: 1fr 1fr;
-            gap: 8px;
-            margin-top: 10px;
-            font-size: 0.8em;
+            gap: 6px;
+            margin-top: 8px;
+            font-size: 0.75em;
         }
 
         .stats-box {
@@ -271,52 +300,123 @@
         .stats-box strong {
             color: #00d4ff;
             display: block;
-            margin-bottom: 3px;
-        }
-
-        .button-group {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 8px;
-            margin-top: 10px;
+            margin-bottom: 2px;
         }
 
         h2 {
-            font-size: 1.1em;
-            margin-top: 15px;
-            margin-bottom: 10px;
+            font-size: 0.95em;
+            margin-top: 12px;
+            margin-bottom: 8px;
             color: #00d4ff;
         }
 
         h3 {
-            font-size: 0.95em;
-            margin-top: 10px;
-            margin-bottom: 8px;
+            font-size: 0.85em;
+            margin-top: 8px;
+            margin-bottom: 6px;
             color: #fff;
         }
 
-        @media (max-width: 1200px) {
-            .container {
-                grid-template-columns: 1fr 1fr;
-            }
+        .opening-info {
+            background: rgba(0, 212, 255, 0.05);
+            padding: 8px;
+            border-radius: 6px;
+            border-left: 3px solid #00d4ff;
+            margin-top: 8px;
+            font-size: 0.75em;
+            line-height: 1.3;
         }
 
         @media (max-width: 768px) {
-            .container {
+            .panels-container {
                 grid-template-columns: 1fr;
             }
+
+            .header h1 {
+                font-size: 1.3em;
+            }
+
+            .square {
+                font-size: 2.5em;
+            }
+
+            .controls {
+                grid-template-columns: 1fr;
+            }
+
+            button.secondary {
+                grid-column: 1;
+            }
+        }
+
+        @media (max-width: 480px) {
+            .header {
+                padding: 8px 10px;
+            }
+
+            .header h1 {
+                font-size: 1.2em;
+            }
+
+            .header p {
+                font-size: 0.7em;
+            }
+
+            .main-container {
+                padding: 8px;
+                gap: 8px;
+            }
+
+            .chessboard {
+                border: 2px solid #00d4ff;
+            }
+
+            .square {
+                font-size: 2em;
+            }
+
+            .controls {
+                padding: 10px;
+                gap: 6px;
+            }
+
+            .stats-panel {
+                padding: 10px;
+                font-size: 0.75em;
+            }
+
+            .elo-display {
+                font-size: 1.5em;
+            }
+        }
+
+        ::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: rgba(0, 212, 255, 0.1);
+            border-radius: 3px;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: #0099ff;
+            border-radius: 3px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: #00d4ff;
         }
     </style>
 </head>
 <body>
     <div class="header">
-        <h1>♟️ Entrenador de Ajedrez Profesional</h1>
-        <p>Entrena con análisis de posiciones en tiempo real</p>
+        <h1>♟️ Entrenador de Ajedrez</h1>
+        <p>Entrena contra IA con análisis en tiempo real</p>
     </div>
 
-    <div class="container">
-        <!-- TABLERO -->
-        <div class="board-container">
+    <div class="main-container">
+        <div class="board-section">
             <div class="chessboard" id="board"></div>
             
             <div class="controls">
@@ -331,109 +431,97 @@
                 <div class="control-group">
                     <label>Nivel</label>
                     <select id="difficulty">
-                        <option value="1">Novato (600)</option>
-                        <option value="2">Intermedio (1200)</option>
-                        <option value="3" selected>Avanzado (1800)</option>
-                        <option value="4">Experto (2200)</option>
-                        <option value="5">Maestro (2600)</option>
+                        <option value="1">Novato</option>
+                        <option value="2">Intermedio</option>
+                        <option value="3" selected>Avanzado</option>
+                        <option value="4">Experto</option>
+                        <option value="5">Maestro</option>
                     </select>
                 </div>
-                <div class="control-group">
-                    <label>Color</label>
-                    <select id="playerColor">
-                        <option value="white">Blancas</option>
-                        <option value="black">Negras</option>
-                    </select>
-                </div>
-                <div class="control-group">
-                    <label>Acciones</label>
-                    <button onclick="resetGame()">🔄 Nueva</button>
-                </div>
+                <button onclick="resetGame()" class="secondary">🔄 Nueva</button>
                 <button onclick="requestHint()" class="secondary">💡 Pista</button>
             </div>
         </div>
 
-        <!-- PANEL CENTRAL -->
-        <div class="stats-panel">
-            <h2>📊 Análisis</h2>
-            
-            <div class="stat-item">
-                <div class="stat-label">
-                    <span>Posición</span>
-                    <span id="evalScore">Igual</span>
+        <div class="panels-container">
+            <div class="stats-panel">
+                <h2>📊 Análisis</h2>
+                
+                <div class="stat-item">
+                    <div class="stat-label">
+                        <span>Posición</span>
+                        <span id="evalScore">Igual</span>
+                    </div>
+                    <div class="progress-bar">
+                        <div class="progress-fill" id="evalBar" style="width: 50%;">50%</div>
+                    </div>
                 </div>
-                <div class="progress-bar">
-                    <div class="progress-fill" id="evalBar" style="width: 50%;">50%</div>
+
+                <h3>Tu Rendimiento</h3>
+                <div class="elo-display" id="eloDisplay">1600</div>
+
+                <div class="stats-grid">
+                    <div class="stats-box">
+                        <strong>Movs</strong>
+                        <span id="moveCount">0</span>
+                    </div>
+                    <div class="stats-box">
+                        <strong>Precisión</strong>
+                        <span id="accuracy">0%</span>
+                    </div>
+                    <div class="stats-box">
+                        <strong>Buenos</strong>
+                        <span id="bestMoves">0</span>
+                    </div>
+                    <div class="stats-box">
+                        <strong>Errores</strong>
+                        <span id="mistakes">0</span>
+                    </div>
+                </div>
+
+                <h3>Fase del Juego</h3>
+                <div class="eval-item">
+                    <strong id="gamePhase">Apertura</strong>
+                    <div id="phaseAdvice" style="margin-top: 3px; font-size: 0.75em;">Desarrolla piezas</div>
+                </div>
+
+                <div class="opening-info" id="openingInfo">
+                    <strong>Apertura:</strong> Posición Inicial
                 </div>
             </div>
 
-            <h3>Tu Rendimiento</h3>
-            <div class="elo-display" id="eloDisplay">1600</div>
+            <div class="stats-panel">
+                <h2>📝 Movimientos</h2>
+                <div class="move-history" id="moveHistory">
+                    <p style="color: #888; text-align: center; font-size: 0.8em;">Movimientos aquí...</p>
+                </div>
 
-            <div class="stats-grid">
-                <div class="stats-box">
-                    <strong>Movimientos</strong>
-                    <span id="moveCount">0</span>
+                <h2>🎯 Recomendación</h2>
+                <div class="eval-item" id="bestMoveInfo">
+                    <strong>Analizando...</strong>
                 </div>
-                <div class="stats-box">
-                    <strong>Precisión</strong>
-                    <span id="accuracy">0%</span>
-                </div>
-                <div class="stats-box">
-                    <strong>Buenos</strong>
-                    <span id="bestMoves">0</span>
-                </div>
-                <div class="stats-box">
-                    <strong>Errores</strong>
-                    <span id="mistakes">0</span>
-                </div>
-            </div>
 
-            <h3>Fase del Juego</h3>
-            <div class="eval-item">
-                <strong id="gamePhase">Apertura</strong>
-                <div id="phaseAdvice" style="margin-top: 5px; font-size: 0.8em;">Desarrolla piezas y controla centro</div>
-            </div>
-
-            <div class="opening-info" id="openingInfo">
-                <strong>Apertura:</strong> Posición Inicial
-            </div>
-        </div>
-
-        <!-- PANEL DERECHA -->
-        <div class="stats-panel">
-            <h2>📝 Movimientos</h2>
-            <div class="move-history" id="moveHistory">
-                <p style="color: #888; text-align: center;">Los movimientos aparecerán aquí...</p>
-            </div>
-
-            <h2>🎯 Recomendación</h2>
-            <div class="eval-item" id="bestMoveInfo">
-                <strong>Analizando posición...</strong>
-            </div>
-
-            <h2>📈 Estadísticas</h2>
-            <div class="stats-grid">
-                <div class="stats-box">
-                    <strong>Partidas</strong>
-                    <span id="totalGames">0</span>
+                <h2>📈 Stats</h2>
+                <div class="stats-grid">
+                    <div class="stats-box">
+                        <strong>Partidas</strong>
+                        <span id="totalGames">0</span>
+                    </div>
+                    <div class="stats-box">
+                        <strong>ELO Máx</strong>
+                        <span id="maxElo">1600</span>
+                    </div>
+                    <div class="stats-box">
+                        <strong>ELO Prom</strong>
+                        <span id="avgElo">1600</span>
+                    </div>
+                    <div class="stats-box">
+                        <strong>Sessions</strong>
+                        <span id="sessions">0</span>
+                    </div>
                 </div>
-                <div class="stats-box">
-                    <strong>ELO Máx</strong>
-                    <span id="maxElo">1600</span>
-                </div>
-                <div class="stats-box">
-                    <strong>ELO Prom</strong>
-                    <span id="avgElo">1600</span>
-                </div>
-                <div class="stats-box">
-                    <strong>Sessions</strong>
-                    <span id="sessions">0</span>
-                </div>
-            </div>
 
-            <div class="button-group">
-                <button onclick="undoMove()" class="secondary">↶ Deshacer</button>
+                <button onclick="undoMove()" class="secondary" style="margin-top: 8px;">↶ Deshacer</button>
                 <button onclick="flipBoard()" class="secondary">🔄 Girar</button>
             </div>
         </div>
@@ -455,11 +543,20 @@
         let moveHistory = [];
         let boardFlipped = false;
 
-        // ==================== APERTURAS ====================
-        const commonOpenings = {
-            'rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR': 'Peón de Rey (1.e4)',
-            'rnbqkbnr/pppppppp/8/8/2P5/8/PP1PPPPP/RNBQKBNR': 'Gambito de Dama (1.c4)',
-            'rnbqkbnr/pppppppp/8/8/3P4/8/PPP1PPPP/RNBQKBNR': 'Peón de Dama (1.d4)',
+        // Símbolos Unicode con colores correctos
+        const pieceSymbols = {
+            'P': '♙', // Peón blanco
+            'R': '♖', // Torre blanca
+            'N': '♘', // Caballo blanco
+            'B': '♗', // Alfil blanco
+            'Q': '♕', // Reina blanca
+            'K': '♔', // Rey blanco
+            'p': '♟', // Peón negro
+            'r': '♜', // Torre negra
+            'n': '♞', // Caballo negro
+            'b': '♝', // Alfil negro
+            'q': '♛', // Reina negra
+            'k': '♚'  // Rey negro
         };
 
         // ==================== TABLERO ====================
@@ -482,11 +579,15 @@
                     if (highlights.includes(square)) squareEl.classList.add('highlight');
                     
                     if (piece) {
-                        const symbols = {
-                            'p': '♟', 'r': '♜', 'n': '♞', 'b': '♝', 'q': '♛', 'k': '♚',
-                            'P': '♙', 'R': '♖', 'N': '♘', 'B': '♗', 'Q': '♕', 'K': '♔'
-                        };
-                        squareEl.textContent = symbols[piece.type];
+                        squareEl.textContent = pieceSymbols[piece.type];
+                        // Colorear fichas: blancas en claro, negras en oscuro
+                        if (piece.color === 'w') {
+                            squareEl.style.color = '#f0d9b5'; // Blancas claras
+                            squareEl.style.textShadow = '1px 1px 2px #333'; // Sombra para contraste
+                        } else {
+                            squareEl.style.color = '#1a1a1a'; // Negras oscuras
+                            squareEl.style.textShadow = '1px 1px 2px #aaa'; // Sombra para contraste
+                        }
                     }
                     
                     squareEl.addEventListener('click', () => handleSquareClick(square));
@@ -560,15 +661,15 @@
             let move;
             
             if (difficulty === 1) {
-                move = moves[Math.floor(Math.random() * Math.min(3, moves.length))];
+                move = moves[Math.floor(Math.random() * Math.min(2, moves.length))];
             } else if (difficulty === 2) {
-                move = moves[Math.floor(Math.random() * Math.min(6, moves.length))];
+                move = moves[Math.floor(Math.random() * Math.min(5, moves.length))];
             } else if (difficulty === 3) {
-                move = moves[Math.floor(Math.random() * Math.min(12, moves.length))];
+                move = moves[Math.floor(Math.random() * Math.min(10, moves.length))];
             } else if (difficulty === 4) {
-                move = moves[Math.floor(Math.random() * Math.min(20, moves.length))];
+                move = moves[Math.floor(Math.random() * Math.min(15, moves.length))];
             } else {
-                move = moves[0]; // Mejor movimiento (simulado)
+                move = moves[0];
             }
             
             game.move(move);
@@ -581,7 +682,7 @@
             if (moves.length === 0) return;
             
             const bestMove = moves[0];
-            alert(`💡 Pista: Considera jugar ${bestMove.san}`);
+            alert(`💡 Pista: Juega ${bestMove.san}`);
         }
 
         // ==================== UI ====================
@@ -592,7 +693,6 @@
             updateEvaluation();
             updateGamePhase();
             updateStats();
-            updateOpening();
             
             if (game.game_over()) {
                 setTimeout(() => {
@@ -600,7 +700,7 @@
                     stats.totalElo += playerElo;
                     stats.maxElo = Math.max(stats.maxElo, playerElo);
                     stats.sessions++;
-                    alert(`🏁 Partida terminada!\n\nELO final: ${playerElo}\n\nClasificación:\n${determineRating(playerElo)}`);
+                    alert(`🏁 Partida terminada!\n\nELO final: ${playerElo}\n${determineRating(playerElo)}`);
                 }, 300);
             }
         }
@@ -610,8 +710,8 @@
             const advantage = 50 + value * 15;
             
             document.getElementById('evalScore').textContent = 
-                advantage > 55 ? '⚪ Blancas +' + value.toFixed(1) :
-                advantage < 45 ? '⚫ Negras +' + (-value).toFixed(1) :
+                advantage > 55 ? '⚪ +' + value.toFixed(1) :
+                advantage < 45 ? '⚫ +' + (-value).toFixed(1) :
                 'Igual';
             
             const bar = document.getElementById('evalBar');
@@ -626,7 +726,7 @@
                 div.className = 'move-item';
                 const moveNum = Math.floor(idx / 2) + 1;
                 const color = idx % 2 === 0 ? '⚪' : '⚫';
-                div.innerHTML = `${color} ${moveNum}. <strong>${item.move}</strong> <span class="move-quality quality-${item.quality}">${item.quality}</span>`;
+                div.innerHTML = `${color} ${moveNum}. <strong>${item.move}</strong> <span class="move-quality quality-${item.quality}">${item.quality.substring(0, 3)}</span>`;
                 hist.appendChild(div);
             });
         }
@@ -634,13 +734,13 @@
         function updateGamePhase() {
             if (moveCount < 6) {
                 document.getElementById('gamePhase').textContent = '📖 Apertura';
-                document.getElementById('phaseAdvice').textContent = 'Desarrolla piezas, controla centro, enroca pronto';
+                document.getElementById('phaseAdvice').textContent = 'Desarrolla piezas y controla centro';
             } else if (moveCount < 20) {
                 document.getElementById('gamePhase').textContent = '⚔️ Medio Juego';
-                document.getElementById('phaseAdvice').textContent = 'Busca ataques, mejora tu posición, coordina piezas';
+                document.getElementById('phaseAdvice').textContent = 'Busca ataques y mejora posición';
             } else {
                 document.getElementById('gamePhase').textContent = '👑 Final';
-                document.getElementById('phaseAdvice').textContent = 'Activa tu rey, busca tiempos, evita tablas';
+                document.getElementById('phaseAdvice').textContent = 'Activa rey y busca tiempos';
             }
         }
 
@@ -656,16 +756,6 @@
             document.getElementById('maxElo').textContent = stats.maxElo;
             document.getElementById('avgElo').textContent = stats.totalGames > 0 ? Math.round(stats.totalElo / stats.totalGames) : 1600;
             document.getElementById('sessions').textContent = stats.sessions;
-        }
-
-        function updateOpening() {
-            const fen = game.fen();
-            for (const [pos, name] of Object.entries(commonOpenings)) {
-                if (fen === pos) {
-                    document.getElementById('openingInfo').innerHTML = `<strong>Apertura:</strong> ${name}`;
-                    break;
-                }
-            }
         }
 
         function determineRating(elo) {
