@@ -613,19 +613,26 @@
         };
 
         const coachPhrases = {
-            good: [
-                "¡Excelente! Has controlado el centro.",
-                "Muy bien, mejoras tu posición.",
-                "Buena jugada, piezas bien coordinadas.",
+             good: [
+                "¡Excelente movimiento! Has controlado el centro.",
+                "Muy bien, has mejorado tu posición.",
+                "Buena jugada, tus piezas están mejor coordinadas.",
                 "Perfecto, mantienes la iniciativa.",
                 "¡Bien visto! Ese era el movimiento correcto."
             ],
             bad: [
-                "Cuidado, debilitas tu posición.",
-                "No es la mejor opción aquí.",
-                "Ese movimiento pierde ventaja.",
+                "Cuidado, ese movimiento debilita tu posición.",
+                "No es la mejor opción. Considera otros movimientos.",
+                "Ese movimiento pierde material sin compensación.",
                 "Deberías proteger mejor tus piezas.",
-                "Error: Te pone en desventaja."
+                "¡Error! Eso te pone en desventaja."
+            ],
+            opening: [
+                "En la apertura, controla el centro con peones.",
+                "Desarrolla tus piezas menores antes de enrocar.",
+                "Enroca pronto para poner tu rey en seguridad.",
+                "Mueve cada pieza una sola vez en la apertura.",
+                "No saques la reina demasiado pronto."
             ]
         };
 
@@ -845,6 +852,27 @@
             }
         }
 
+        function showSuggestion() {
+            const mode = document.getElementById('gameMode').value;
+            if (mode === 'free' || game.turn() === 'b') return;
+
+            const best = getBestMove();
+            if (!best) return;
+
+            const suggestionBox = document.getElementById('suggestionBox');
+            document.getElementById('suggestionMove').textContent = best.san;
+            
+            const reasons = [
+                'Mejora tu posición',
+                'Controla el centro',
+                'Protege tus piezas',
+                'Crea amenazas',
+                'Es el movimiento más fuerte'
+            ];
+            document.getElementById('suggestionReason').textContent = reasons[Math.floor(Math.random() * reasons.length)];
+            suggestionBox.style.display = 'block';
+        }
+        
         function updateMoveHistory() {
             const hist = document.getElementById('moveHistory');
             hist.innerHTML = '';
@@ -879,29 +907,13 @@
             }
         }
 
-        function updatePhase() {
-            const phase = moveCount < 8 ? '📖 Apertura' : moveCount < 30 ? '⚔️ Medio Juego' : '👑 Final';
-            document.getElementById('gamePhase').textContent = phase;
-        }
-
-       function showGameOver() {
-            const modal = document.getElementById('gameOverModal');
-            const title = document.getElementById('modalTitle');
-            const text = document.getElementById('modalText');
-
+        function showGameOver() {
+            let result = '';
             if (game.in_checkmate()) {
-                title.textContent = game.turn() === 'w' ? '¡Ganaste!' : 'Perdiste';
-                text.textContent = `Jaque mate${moveCount > 0 ? ' en ' + moveCount + ' movimientos' : ''}`;
+                result = game.turn() === 'w' ? '¡Ganaste!' : 'Perdiste';
             } else if (game.in_draw()) {
-                title.textContent = 'Tablas';
-                text.textContent = 'La partida ha terminado en tablas';
+                result = 'Tablas';
             } else {
-                title.textContent = 'Partida Terminada';
-                text.textContent = 'El juego ha terminado';
-            }
-
-            modal.classList.add('active');
-        }
 
         function requestHint() {
             const best = getBestMove();
@@ -930,16 +942,9 @@
             }
         }
 
-         function flipBoard() {
-            boardFlipped = !boardFlipped;
-            renderBoard();
-        }
-
         function analysisMode() {
             alert('📊 Análisis de partida: Próximamente se agregará pantalla de análisis detallado con recomendaciones');
         }
-
-        document.getElementById('gameMode').addEventListener('change', resetGame);
 
         renderBoard();
         updateUI();
