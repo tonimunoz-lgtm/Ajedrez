@@ -879,6 +879,11 @@
             }
         }
 
+        function updatePhase() {
+            const phase = moveCount < 8 ? '📖 Apertura' : moveCount < 30 ? '⚔️ Medio Juego' : '👑 Final';
+            document.getElementById('gamePhase').textContent = phase;
+        }
+
        function showGameOver() {
             const modal = document.getElementById('gameOverModal');
             const title = document.getElementById('modalTitle');
@@ -923,6 +928,11 @@
                 moveCount--;
                 updateUI();
             }
+        }
+
+         function flipBoard() {
+            boardFlipped = !boardFlipped;
+            renderBoard();
         }
 
         function analysisMode() {
