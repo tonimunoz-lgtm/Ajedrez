@@ -694,19 +694,18 @@
         }
     }
 
-    async function handleSquareClick(square) {
+    afunction handleSquareClick(square) {
     if (aiThinking || game.game_over()) return;
 
     const piece = game.get(square);
 
     if (selectedSquare && piece && game.get(selectedSquare).color === piece.color) {
-        // Seleccionar otra pieza del mismo color
+        // Cambiar la selección
         selectedSquare = square;
         highlights = game.moves({ square, verbose: true }).map(m => m.to);
     } else if (selectedSquare) {
         // Intentar mover la pieza seleccionada
         const move = game.move({ from: selectedSquare, to: square, promotion: 'q' });
-
         if (move) {
             lastFromSquare = selectedSquare;
             lastToSquare = square;
@@ -714,20 +713,22 @@
             selectedSquare = null;
             highlights = [];
 
-            // Evaluar el movimiento usando Stockfish y esperar el resultado
-            await evaluateMoveQuality(move);
+            // Evaluar el movimiento en segundo plano (no bloquea la IA)
+            evaluateMoveQuality(move);
 
+            // Mover la IA si aplica
             const mode = document.getElementById('gameMode').value;
             if ((mode === 'vs-ia' || mode === 'coach') && !game.game_over()) {
                 aiThinking = true;
                 setTimeout(makeAIMove, 1200);
             }
+
+            updateUI(); // actualiza tablero inmediatamente
         } else {
             selectedSquare = null;
             highlights = [];
         }
     } else if (piece && piece.color === game.turn()) {
-        // Seleccionar la pieza
         selectedSquare = square;
         highlights = game.moves({ square, verbose: true }).map(m => m.to);
     }
@@ -735,49 +736,43 @@
     renderBoard();
 }
 
-async function evaluateMoveQuality(move) {
-    // Guardar la posición antes del movimiento
+// -----------------------------------------
+// Evaluación del movimiento con Stockfish
+// -----------------------------------------
+function evaluateMoveQuality(move) {
+    // Guardar FEN antes del movimiento (ya movido en el juego)
     const fenBefore = game.fen();
     sendPositionToStockfish(fenBefore);
 
-    // Esperar el mejor movimiento y evaluación de Stockfish antes del movimiento
-    const [bestUci, evalBefore] = await new Promise(resolve => {
-        getStockfishBestMove((best, evalScore) => resolve([best, evalScore]));
+    getStockfishBestMove((bestUci, evalBefore) => {
+        // Aquí `move` ya está aplicado, calculamos la posición actual
+        const fenAfter = game.fen();
+        sendPositionToStockfish(fenAfter);
+
+        getStockfishBestMove((bestAfter, evalAfter) => {
+            // Clasificar el movimiento
+            const evalDiff = (evalAfter ?? 0) - (evalBefore ?? 0);
+
+            let quality;
+            if (move.san === bestUci) quality = 'excellent';
+            else if (evalDiff > -30) quality = 'good';
+            else if (evalDiff > -100) quality = 'mistake';
+            else quality = 'blunder';
+
+            // Guardar estadísticas
+            if (quality === 'excellent' || quality === 'good') goodMoves++;
+            else badMoves++;
+
+            // Mostrar mensaje del entrenador
+            giveCoachFeedback(quality);
+
+            // Actualizar stats y historial de movimientos
+            updateStats();
+            updateMoveHistory();
+        });
     });
-
-    // Aplicar el movimiento real
-    const san = move.san;
-    // Ya se movió en handleSquareClick, así que no hacemos game.move(san) de nuevo
-
-    // Evaluar la posición después del movimiento
-    const fenAfter = game.fen();
-    sendPositionToStockfish(fenAfter);
-
-    const [bestAfter, evalAfter] = await new Promise(resolve => {
-        getStockfishBestMove((best, evalScore) => resolve([best, evalScore]));
-    });
-
-    // Diferencia de evaluación
-    const evalDiff = (evalAfter ?? 0) - (evalBefore ?? 0);
-
-    // Determinar calidad del movimiento
-    let quality;
-    if (san === bestUci) quality = 'excellent';
-    else if (evalDiff > -30) quality = 'good';
-    else if (evalDiff > -100) quality = 'mistake';
-    else quality = 'blunder';
-
-    // Actualizar estadísticas
-    if (quality === 'excellent' || quality === 'good') goodMoves++;
-    else badMoves++;
-
-    // Mostrar mensaje del entrenador
-    giveCoachFeedback(quality);
-
-    // Actualizar UI
-    updateStats();
-    updateMoveHistory();
 }
+
 
 
 
