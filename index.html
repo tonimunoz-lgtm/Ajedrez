@@ -879,10 +879,58 @@
             }
         }
 
-        function showGameOver() {
-            let result = '';
+       function showGameOver() {
+            const modal = document.getElementById('gameOverModal');
+            const title = document.getElementById('modalTitle');
+            const text = document.getElementById('modalText');
+
             if (game.in_checkmate()) {
-                result = game.turn() === 'w' ? '¡Ganaste!' : 'Perdiste';
+                title.textContent = game.turn() === 'w' ? '¡Ganaste!' : 'Perdiste';
+                text.textContent = `Jaque mate${moveCount > 0 ? ' en ' + moveCount + ' movimientos' : ''}`;
             } else if (game.in_draw()) {
-                result = 'Tablas';
+                title.textContent = 'Tablas';
+                text.textContent = 'La partida ha terminado en tablas';
             } else {
+                title.textContent = 'Partida Terminada';
+                text.textContent = 'El juego ha terminado';
+            }
+
+            modal.classList.add('active');
+        }
+
+        function requestHint() {
+            const best = getBestMove();
+            if (best) alert(`💡 Pista: ${best.san}`);
+        }
+
+        function resetGame() {
+            game.reset();
+            selectedSquare = null;
+            highlights = [];
+            lastFromSquare = null;
+            lastToSquare = null;
+            moveHistory = [];
+            moveCount = 0;
+            goodMoves = 0;
+            aiThinking = false;
+            document.getElementById('gameOverModal').classList.remove('active');
+            updateUI();
+        }
+
+        function undoMove() {
+            if (moveCount > 0) {
+                game.undo();
+                moveCount--;
+                updateUI();
+            }
+        }
+
+        function analysisMode() {
+            alert('📊 Análisis de partida: Próximamente se agregará pantalla de análisis detallado con recomendaciones');
+        }
+
+        renderBoard();
+        updateUI();
+    </script>
+</body>
+</html>
