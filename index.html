@@ -1,0 +1,582 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Entrenador de Ajedrez - Stockfish</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/chess.js/0.10.3/chess.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #1e1e2e 0%, #2d2d44 100%);
+            color: #fff;
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 30px;
+            align-items: start;
+        }
+
+        .header {
+            grid-column: 1 / -1;
+            text-align: center;
+            margin-bottom: 20px;
+        }
+
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+            background: linear-gradient(135deg, #00d4ff, #0099ff);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .board-container {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        .chessboard {
+            display: grid;
+            grid-template-columns: repeat(8, 1fr);
+            gap: 0;
+            background: #2a2a3e;
+            border: 3px solid #00d4ff;
+            border-radius: 8px;
+            overflow: hidden;
+            aspect-ratio: 1;
+            max-width: 600px;
+            margin: 0 auto;
+        }
+
+        .square {
+            aspect-ratio: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 2.5em;
+            cursor: pointer;
+            user-select: none;
+            position: relative;
+            transition: all 0.2s;
+        }
+
+        .square:hover {
+            background: rgba(0, 212, 255, 0.1);
+        }
+
+        .square.light {
+            background: #f0d9b5;
+        }
+
+        .square.dark {
+            background: #b58863;
+        }
+
+        .square.selected {
+            background: #baca44 !important;
+        }
+
+        .square.highlight {
+            background: rgba(186, 202, 68, 0.5) !important;
+        }
+
+        .controls {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+            background: rgba(0, 212, 255, 0.05);
+            padding: 20px;
+            border-radius: 8px;
+            border: 1px solid rgba(0, 212, 255, 0.2);
+        }
+
+        .control-group {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .control-group label {
+            font-size: 0.9em;
+            color: #00d4ff;
+            font-weight: 600;
+        }
+
+        select, button {
+            padding: 10px 15px;
+            background: #0099ff;
+            color: #fff;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 1em;
+            font-weight: 600;
+            transition: all 0.3s;
+        }
+
+        select:hover, button:hover {
+            background: #00d4ff;
+            transform: translateY(-2px);
+        }
+
+        button.secondary {
+            background: #444;
+        }
+
+        button.secondary:hover {
+            background: #555;
+        }
+
+        .stats-panel {
+            background: rgba(0, 212, 255, 0.05);
+            border: 1px solid rgba(0, 212, 255, 0.2);
+            border-radius: 8px;
+            padding: 20px;
+        }
+
+        .stat-item {
+            margin-bottom: 20px;
+        }
+
+        .stat-label {
+            color: #00d4ff;
+            font-weight: 600;
+            margin-bottom: 8px;
+            display: flex;
+            justify-content: space-between;
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 30px;
+            background: #2a2a3e;
+            border-radius: 6px;
+            overflow: hidden;
+            border: 2px solid #444;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #0099ff, #00d4ff);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.85em;
+            font-weight: 600;
+            transition: width 0.5s ease;
+        }
+
+        .evaluation {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            margin-top: 15px;
+            font-size: 0.9em;
+        }
+
+        .eval-item {
+            background: rgba(255, 255, 255, 0.05);
+            padding: 10px;
+            border-radius: 6px;
+            border-left: 3px solid #00d4ff;
+        }
+
+        .eval-item strong {
+            color: #00d4ff;
+        }
+
+        .move-quality {
+            display: inline-block;
+            padding: 8px 12px;
+            border-radius: 6px;
+            font-weight: 600;
+            margin-top: 10px;
+            font-size: 0.9em;
+        }
+
+        .quality-excellent { background: #00ff00; color: #000; }
+        .quality-good { background: #7fff00; color: #000; }
+        .quality-inaccuracy { background: #ffff00; color: #000; }
+        .quality-mistake { background: #ff8800; color: #fff; }
+        .quality-blunder { background: #ff0000; color: #fff; }
+        .quality-brilliant { background: #ff00ff; color: #fff; }
+
+        .move-history {
+            max-height: 300px;
+            overflow-y: auto;
+            background: rgba(255, 255, 255, 0.02);
+            padding: 15px;
+            border-radius: 6px;
+            border: 1px solid rgba(0, 212, 255, 0.2);
+            margin-top: 15px;
+        }
+
+        .move-item {
+            padding: 8px;
+            background: rgba(0, 212, 255, 0.1);
+            margin-bottom: 8px;
+            border-radius: 4px;
+            font-size: 0.9em;
+            border-left: 3px solid #00d4ff;
+        }
+
+        .opening-info {
+            background: rgba(0, 212, 255, 0.05);
+            padding: 15px;
+            border-radius: 6px;
+            border-left: 4px solid #00d4ff;
+            margin-top: 15px;
+            font-size: 0.9em;
+        }
+
+        .elo-display {
+            font-size: 2em;
+            font-weight: 700;
+            color: #00d4ff;
+            text-align: center;
+            margin: 15px 0;
+        }
+
+        .button-group {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            margin-top: 15px;
+        }
+
+        @media (max-width: 1024px) {
+            .container {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>♟️ Entrenador de Ajedrez</h1>
+        <p>Entrena contra Stockfish con análisis en tiempo real</p>
+    </div>
+
+    <div class="container">
+        <div class="board-container">
+            <div class="chessboard" id="board"></div>
+            
+            <div class="controls">
+                <div class="control-group">
+                    <label>Modo de Juego</label>
+                    <select id="gameMode">
+                        <option value="trainer">Entrenador (Consejos)</option>
+                        <option value="stockfish">vs Stockfish</option>
+                        <option value="freeplay">Juego Libre</option>
+                    </select>
+                </div>
+                <div class="control-group">
+                    <label>Nivel de Dificultad</label>
+                    <select id="difficulty" disabled>
+                        <option value="1">Novato</option>
+                        <option value="2">Intermedio</option>
+                        <option value="3" selected>Avanzado</option>
+                        <option value="4">Experto</option>
+                        <option value="5">Gran Maestro</option>
+                    </select>
+                </div>
+                <div class="control-group">
+                    <label>Jugar con</label>
+                    <select id="playerColor">
+                        <option value="white">Blancas</option>
+                        <option value="black">Negras</option>
+                    </select>
+                </div>
+                <div class="control-group">
+                    <label>Acciones</label>
+                    <button onclick="resetGame()">Nueva Partida</button>
+                </div>
+            </div>
+
+            <button onclick="requestHint()" id="hintBtn" style="width: 100%;">💡 Pedir Pista</button>
+        </div>
+
+        <div class="stats-panel">
+            <h2>📊 Análisis de Posición</h2>
+            
+            <div class="stat-item">
+                <div class="stat-label">
+                    <span>Ventaja</span>
+                    <span id="evalScore">0.0</span>
+                </div>
+                <div class="progress-bar">
+                    <div class="progress-fill" id="evalBar" style="width: 50%;">50%</div>
+                </div>
+            </div>
+
+            <div class="eval-item">
+                <strong>Tu ELO:</strong>
+                <div class="elo-display" id="eloDisplay">1600</div>
+            </div>
+
+            <div id="moveQualityContainer"></div>
+
+            <div class="opening-info" id="openingInfo">
+                <strong>Apertura:</strong> Posición Inicial
+            </div>
+
+            <h2 style="margin-top: 25px;">📝 Historial de Movimientos</h2>
+            <div class="move-history" id="moveHistory">
+                <p style="color: #888; text-align: center;">Los movimientos aparecerán aquí...</p>
+            </div>
+
+            <div class="button-group">
+                <button onclick="undoMove()" class="secondary">↶ Deshacer</button>
+                <button onclick="toggleAnalysisMode()" class="secondary" id="analysisToggle">🔍 Análisis</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Variables globales
+        const game = new Chess();
+        let stockfish = null;
+        let selectedSquare = null;
+        let highlights = [];
+        let playerElo = 1600;
+        let moveCount = 0;
+        let analysisMode = false;
+        let lastEvaluation = null;
+        let moveHistory = [];
+
+        // Dificultades Stockfish
+        const difficultyMap = {
+            '1': { depth: 4, name: 'Novato' },
+            '2': { depth: 6, name: 'Intermedio' },
+            '3': { depth: 10, name: 'Avanzado' },
+            '4': { depth: 15, name: 'Experto' },
+            '5': { depth: 20, name: 'Gran Maestro' }
+        };
+
+        // Inicializar
+        document.getElementById('difficulty').disabled = true;
+        document.getElementById('playerColor').disabled = true;
+
+        document.getElementById('gameMode').addEventListener('change', (e) => {
+            document.getElementById('difficulty').disabled = e.target.value === 'freeplay';
+            document.getElementById('playerColor').disabled = e.target.value === 'freeplay';
+            resetGame();
+        });
+
+        // Renderizar tablero
+        function renderBoard() {
+            const board = document.getElementById('board');
+            board.innerHTML = '';
+            
+            for (let row = 0; row < 8; row++) {
+                for (let col = 0; col < 8; col++) {
+                    const square = String.fromCharCode(97 + col) + (8 - row);
+                    const piece = game.get(square);
+                    
+                    const squareEl = document.createElement('div');
+                    squareEl.className = 'square ' + ((row + col) % 2 === 0 ? 'light' : 'dark');
+                    squareEl.id = square;
+                    
+                    if (selectedSquare === square) squareEl.classList.add('selected');
+                    if (highlights.includes(square)) squareEl.classList.add('highlight');
+                    
+                    if (piece) {
+                        const pieceSymbols = {
+                            'p': '♟', 'r': '♜', 'n': '♞', 'b': '♝', 'q': '♛', 'k': '♚',
+                            'P': '♙', 'R': '♖', 'N': '♘', 'B': '♗', 'Q': '♕', 'K': '♔'
+                        };
+                        squareEl.textContent = pieceSymbols[piece.type] || piece.type;
+                        squareEl.style.color = piece.color === 'w' ? '#f0d9b5' : '#2a2a3e';
+                    }
+                    
+                    squareEl.addEventListener('click', () => handleSquareClick(square));
+                    board.appendChild(squareEl);
+                }
+            }
+        }
+
+        // Manejo de clicks en el tablero
+        function handleSquareClick(square) {
+            if (game.game_over()) return;
+            
+            const piece = game.get(square);
+            
+            if (selectedSquare && piece && game.get(selectedSquare).color === piece.color) {
+                selectedSquare = square;
+                highlights = [];
+                highlights = game.moves({ square, verbose: true }).map(m => m.to);
+            } else if (selectedSquare) {
+                const move = game.move({
+                    from: selectedSquare,
+                    to: square,
+                    promotion: 'q'
+                });
+                
+                if (move) {
+                    moveCount++;
+                    selectedSquare = null;
+                    highlights = [];
+                    evaluateMove(move);
+                    updateUI();
+                    
+                    const mode = document.getElementById('gameMode').value;
+                    if (mode === 'stockfish' && !game.game_over()) {
+                        setTimeout(makeStockfishMove, 500);
+                    }
+                } else {
+                    selectedSquare = null;
+                    highlights = [];
+                }
+            } else if (piece && piece.color === game.turn()) {
+                selectedSquare = square;
+                highlights = game.moves({ square, verbose: true }).map(m => m.to);
+            }
+            
+            renderBoard();
+        }
+
+        // Evaluar movimiento del jugador
+        function evaluateMove(move) {
+            const quality = analyzeMove(move);
+            const eloChange = quality.eloChange;
+            playerElo += eloChange;
+            
+            moveHistory.push({
+                move: move.san,
+                quality: quality.type,
+                centipawns: quality.centipawns
+            });
+            
+            updateMoveHistory();
+        }
+
+        // Analizar calidad de movimiento
+        function analyzeMove(move) {
+            // Simulación de análisis (en una versión real usarías Stockfish)
+            const random = Math.random();
+            
+            if (random < 0.1) {
+                return { type: 'brillante', eloChange: 20, centipawns: 0 };
+            } else if (random < 0.25) {
+                return { type: 'excelente', eloChange: 15, centipawns: 0 };
+            } else if (random < 0.5) {
+                return { type: 'bueno', eloChange: 5, centipawns: 0 };
+            } else if (random < 0.75) {
+                return { type: 'imprecision', eloChange: -5, centipawns: -10 };
+            } else if (random < 0.9) {
+                return { type: 'error', eloChange: -15, centipawns: -30 };
+            } else {
+                return { type: 'blunder', eloChange: -30, centipawns: -50 };
+            }
+        }
+
+        // Movimiento de Stockfish
+        function makeStockfishMove() {
+            const moves = game.moves({ verbose: true });
+            if (moves.length === 0) return;
+            
+            const randomMove = moves[Math.floor(Math.random() * moves.length)];
+            game.move(randomMove);
+            updateUI();
+        }
+
+        // Pedir pista
+        function requestHint() {
+            const moves = game.moves({ verbose: true });
+            if (moves.length > 0) {
+                const bestMove = moves[0];
+                alert(`💡 Pista: Considera mover ${bestMove.san}`);
+            }
+        }
+
+        // Deshacer movimiento
+        function undoMove() {
+            if (game.moves().length > 0) {
+                game.undo();
+                moveHistory.pop();
+                updateMoveHistory();
+                renderBoard();
+                updateUI();
+            }
+        }
+
+        // Actualizar historial de movimientos
+        function updateMoveHistory() {
+            const hist = document.getElementById('moveHistory');
+            hist.innerHTML = '';
+            
+            moveHistory.forEach((item, idx) => {
+                const div = document.createElement('div');
+                div.className = 'move-item';
+                div.innerHTML = `
+                    <strong>${Math.floor(idx / 2) + 1}.</strong> ${item.move}
+                    <span class="move-quality quality-${item.quality}">${item.quality.toUpperCase()}</span>
+                `;
+                hist.appendChild(div);
+            });
+        }
+
+        // Actualizar UI general
+        function updateUI() {
+            renderBoard();
+            document.getElementById('eloDisplay').textContent = playerElo;
+            updateEvaluation();
+            
+            if (game.game_over()) {
+                setTimeout(() => {
+                    alert(`¡Partida terminada!\n\nTu ELO final: ${playerElo}`);
+                }, 300);
+            }
+        }
+
+        // Actualizar evaluación
+        function updateEvaluation() {
+            const evalScore = Math.random() * 4 - 2; // -2 a +2
+            const whiteAdvantage = 50 + (evalScore / 4) * 50;
+            
+            document.getElementById('evalScore').textContent = evalScore.toFixed(1);
+            const bar = document.getElementById('evalBar');
+            bar.style.width = whiteAdvantage + '%';
+            bar.textContent = Math.round(whiteAdvantage) + '%';
+        }
+
+        // Nueva partida
+        function resetGame() {
+            game.reset();
+            selectedSquare = null;
+            highlights = [];
+            moveHistory = [];
+            moveCount = 0;
+            playerElo = 1600;
+            
+            updateUI();
+        }
+
+        // Toggle análisis
+        function toggleAnalysisMode() {
+            analysisMode = !analysisMode;
+            document.getElementById('analysisToggle').textContent = 
+                analysisMode ? '🔍 Análisis ON' : '🔍 Análisis OFF';
+        }
+
+        // Iniciar
+        renderBoard();
+        updateUI();
+    </script>
+</body>
+</html>
