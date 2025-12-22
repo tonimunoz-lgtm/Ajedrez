@@ -879,10 +879,80 @@
             }
         }
 
-        function showGameOver() {
+                function showGameOver() {
             let result = '';
             if (game.in_checkmate()) {
                 result = game.turn() === 'w' ? '¡Ganaste!' : 'Perdiste';
             } else if (game.in_draw()) {
                 result = 'Tablas';
+            } else if (game.in_stalemate()) {
+                result = 'Ahogado (Stalemate)';
+            } else if (game.in_threefold_repetition()) {
+                result = 'Repetición triple';
+            } else if (game.insufficient_material()) {
+                result = 'Material insuficiente';
             } else {
+                return; // aún no hay fin de juego
+            }
+
+            alert('🏁 Fin de la partida: ' + result);
+        }
+
+        function resetGame() {
+            game.reset();
+            selectedSquare = null;
+            highlights = [];
+            lastFromSquare = null;
+            lastToSquare = null;
+            moveHistory = [];
+            moveCount = 0;
+            goodMoves = 0;
+            badMoves = 0;
+            aiThinking = false;
+
+            document.getElementById('coachMessage').innerHTML = '<strong>¡Bienvenido!</strong> Realiza tu primer movimiento. El entrenador te dará consejos.';
+            document.getElementById('lastMoveInfo').style.display = 'none';
+            document.getElementById('openingInfo').style.display = 'none';
+
+            updateUI();
+        }
+
+        function undoMove() {
+            if (aiThinking) return;
+            game.undo();
+            game.undo(); // deshacer también el movimiento de la IA
+            moveCount = Math.max(0, moveCount - 2);
+            updateUI();
+        }
+
+        function flipBoard() {
+            boardFlipped = !boardFlipped;
+            renderBoard();
+        }
+
+        function requestHint() {
+            if (game.game_over() || aiThinking) return;
+            const bestMove = getBestMove();
+            if (!bestMove) return;
+
+            const from = bestMove.from;
+            const to = bestMove.to;
+            selectedSquare = from;
+            highlights = [to];
+            renderBoard();
+
+            const coachMsg = document.getElementById('coachMessage');
+            coachMsg.innerHTML = '<strong>💡 Pista:</strong> Mueve ' + bestMove.san;
+            coachMsg.className = 'coach-message good';
+        }
+
+        function analysisMode() {
+            alert('📊 Modo análisis activado (función pendiente de implementar mejoras).');
+        }
+
+        // Inicialización al cargar la página
+        renderBoard();
+        updateUI();
+    </script>
+</body>
+</html>
