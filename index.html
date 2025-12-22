@@ -950,6 +950,102 @@
             alert('📊 Modo análisis activado (función pendiente de implementar mejoras).');
         }
 
+            // 📌 Stockfish integration
+    const engine = new Worker('stockfish.wasm.js');
+    let engineReady = false;
+    let engineBestMove = null;
+    let engineEval = null;
+
+    // Inicializar Stockfish
+    engine.onmessage = function(e) {
+        const msg = e.data?.trim();
+        if (!msg) return;
+
+        // Cuando el motor está listo
+        if (msg === 'uciok') {
+            engineReady = true;
+        }
+
+        // Recoger la mejor jugada
+        if (msg.startsWith('bestmove')) {
+            const parts = msg.split(' ');
+            engineBestMove = parts[1];
+        }
+
+        // Recoger evaluación en info
+        if (msg.startsWith('info') && msg.includes('score cp')) {
+            const scoreIdx = msg.indexOf('score cp') + 9;
+            const cp = parseInt(msg.split('score cp ')[1].split(' ')[0]);
+            engineEval = cp;
+        }
+    };
+
+    // Enviar posición a Stockfish
+    function sendPositionToStockfish(fen) {
+        if (!engineReady) {
+            engine.postMessage('uci');
+        }
+        engine.postMessage('position fen ' + fen);
+        engine.postMessage('go depth 15'); // profundidad ~15 (ajústala)
+        engineBestMove = null;
+        engineEval = null;
+    }
+
+    // Esperar la respuesta del motor
+    function getStockfishBestMove(callback) {
+        const checkInterval = setInterval(() => {
+            if (engineBestMove) {
+                clearInterval(checkInterval);
+                callback(engineBestMove, engineEval);
+            }
+        }, 30);
+    }
+
+    // 📌 Nueva versión de evaluateMoveQuality usando Stockfish
+    function evaluateMoveQuality(moveSAN) {
+        // Evaluación inicial desde Stockfish antes del movimiento
+        const beforeFen = game.fen();
+        sendPositionToStockfish(beforeFen);
+
+        getStockfishBestMove((bestUci, evalBefore) => {
+            // Aplicamos el movimiento real para comparar
+            game.move(moveSAN);
+
+            const afterFen = game.fen();
+            sendPositionToStockfish(afterFen);
+
+            getStockfishBestMove((bestAfter, evalAfter) => {
+                // Volvemos a posición anterior
+                game.undo();
+
+                // Clasificación basada en evaluación
+                const evalDiff = (evalAfter || 0) - (evalBefore || 0);
+
+                let quality = 'inaccuracy';
+                if (moveSAN === bestUci) {
+                    quality = 'excellent';
+                } else if (evalDiff > -30) {
+                    quality = 'good';
+                } else if (evalDiff > -100) {
+                    quality = 'mistake';
+                } else {
+                    quality = 'blunder';
+                }
+
+                // Guardar stats
+                if (quality === 'excellent' || quality === 'good') goodMoves++;
+                else badMoves++;
+
+                // Mensaje de entrenador
+                giveCoachFeedback(quality);
+
+                updateStats();
+                updateMoveHistory();
+            });
+        });
+    }
+
+
         // Inicialización al cargar la página
         renderBoard();
         updateUI();
