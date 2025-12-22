@@ -908,17 +908,23 @@
         }
 
         function showGameOver() {
-    let result = '';
-    if (game.in_checkmate()) {
-        result = game.turn() === 'w' ? '¡Ganaste!' : 'Perdiste';
-    } else if (game.in_draw()) {
-        result = 'Tablas';
-    } else {
-        result = 'Partida finalizada';
-    }
+            const modal = document.getElementById('gameOverModal');
+            const title = document.getElementById('modalTitle');
+            const text = document.getElementById('modalText');
 
-    alert(result);
-}
+            if (game.in_checkmate()) {
+                title.textContent = game.turn() === 'w' ? '¡Ganaste!' : 'Perdiste';
+                text.textContent = `Jaque mate${moveCount > 0 ? ' en ' + moveCount + ' movimientos' : ''}`;
+            } else if (game.in_draw()) {
+                title.textContent = 'Tablas';
+                text.textContent = 'La partida ha terminado en tablas';
+            } else {
+                title.textContent = 'Partida Terminada';
+                text.textContent = 'El juego ha terminado';
+            }
+
+            modal.classList.add('active');
+        }
 
         function requestHint() {
             const best = getBestMove();
