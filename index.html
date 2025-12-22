@@ -613,21 +613,23 @@
         };
 
         const coachPhrases = {
-            good: [
-                "¡Excelente! Has controlado el centro.",
-                "Muy bien, mejoras tu posición.",
-                "Buena jugada, piezas bien coordinadas.",
-                "Perfecto, mantienes la iniciativa.",
-                "¡Bien visto! Ese era el movimiento correcto."
-            ],
-            bad: [
-                "Cuidado, debilitas tu posición.",
-                "No es la mejor opción aquí.",
-                "Ese movimiento pierde ventaja.",
-                "Deberías proteger mejor tus piezas.",
-                "Error: Te pone en desventaja."
-            ]
-        };
+    excellent: [
+        "¡Perfecto! Esa es la mejor jugada.",
+        "Increíble, mantiene ventaja óptima."
+    ],
+    good: [
+        "Buen movimiento, la posición mejora.",
+        "Sigue así, buena elección."
+    ],
+    mistake: [
+        "Cuidado, podrías perder ventaja.",
+        "No es la mejor jugada aquí."
+    ],
+    blunder: [
+        "¡Error grave! La posición empeora.",
+        "Ese movimiento te pone en desventaja."
+    ]
+};
 
         const openings = {
             'rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR': 'Peón de Rey (1.e4)',
@@ -648,26 +650,6 @@
                 }
             }
             return score;
-        }
-
-        function getBestMove() {
-            const moves = game.moves({ verbose: true });
-            if (!moves.length) return null;
-
-            let best = moves[0];
-            let bestScore = -Infinity;
-
-            for (let move of moves.slice(0, Math.min(30, moves.length))) {
-                game.move(move);
-                const score = -evaluatePosition();
-                game.undo();
-
-                if (score > bestScore) {
-                    bestScore = score;
-                    best = move;
-                }
-            }
-            return best;
         }
 
         function renderBoard() {
@@ -743,19 +725,7 @@
     renderBoard();
 }
 
-        function evaluateMoveQuality(move) {
-            const best = getBestMove();
-            const isBestMove = best && (move.san === best.san);
-            
-            if (isBestMove) {
-                goodMoves++;
-                giveCoachFeedback('good');
-            } else {
-                badMoves++;
-                giveCoachFeedback('bad');
-            }
-        }
-
+    
         function giveCoachFeedback(type) {
             const mode = document.getElementById('gameMode').value;
             if (mode === 'free') return;
@@ -1005,44 +975,48 @@
     }
 
     // 📌 Nueva versión de evaluateMoveQuality usando Stockfish
-   function evaluateMoveWithStockfish(moveSAN, callback) {
-    const beforeFen = game.fen();
-    sendPositionToStockfish(beforeFen);
+   function evaluateMoveQuality(move) {
+    if (game.game_over() || aiThinking) return;
+
+    const fenBefore = game.fen();
+
+    // Enviar posición actual a Stockfish
+    sendPositionToStockfish(fenBefore);
 
     getStockfishBestMove((bestUci, evalBefore) => {
-        // Aplicamos el movimiento real
-        game.move(moveSAN);
+        // Aplicar el movimiento real
+        game.move(move);
 
-        const afterFen = game.fen();
-        sendPositionToStockfish(afterFen);
+        const fenAfter = game.fen();
+        sendPositionToStockfish(fenAfter);
 
         getStockfishBestMove((bestAfter, evalAfter) => {
-            // Volvemos a posición anterior
+            // Deshacer movimiento para no alterar el estado interno si se quiere
             game.undo();
 
-            // Clasificación
-            let quality = 'inaccuracy';
-            if (moveSAN === bestUci) {
-                quality = 'excellent';
-            } else if ((evalAfter || 0) - (evalBefore || 0) > -30) {
-                quality = 'good';
-            } else if ((evalAfter || 0) - (evalBefore || 0) > -100) {
-                quality = 'mistake';
-            } else {
-                quality = 'blunder';
-            }
+            // Evaluación: diferencia de centipawns
+            const evalDiff = (evalAfter ?? 0) - (evalBefore ?? 0);
 
+            let quality;
+            if (move === bestUci) quality = 'excellent';
+            else if (evalDiff > -30) quality = 'good';
+            else if (evalDiff > -100) quality = 'mistake';
+            else quality = 'blunder';
+
+            // Actualizar estadísticas
             if (quality === 'excellent' || quality === 'good') goodMoves++;
             else badMoves++;
 
+            // Mensaje de coach
             giveCoachFeedback(quality);
+
+            // Actualizar UI
             updateStats();
             updateMoveHistory();
-
-            if (callback) callback();
         });
     });
 }
+
 
 
 
