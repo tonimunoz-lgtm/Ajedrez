@@ -433,101 +433,6 @@
         return 1 / (1 + Math.exp(-cp / 2.5));
     }
 
-    function updateEvalBarFromStockfish(cp) {
-        const prob = cpToWinProbability(cp);
-        const percentage = Math.round(prob * 100);
-
-        const bar = document.getElementById("evalBarFill");
-        bar.style.height = percentage + "%";
-        bar.textContent = percentage + "%";
-
-        document.getElementById("evalScore").textContent = cp.toFixed(2);
-        document.getElementById("winProb").innerHTML =
-            `B:${percentage}% N:${100 - percentage}%`;
-    }
-
-    function evaluatePlayerMove(prevEval, newEval) {
-        const diff = newEval - prevEval;
-
-        if (diff < -1.5) return "blunder";
-        if (diff < -0.7) return "mistake";
-        if (diff < -0.2) return "inaccuracy";
-        if (diff > 0.5) return "excellent";
-        return "good";
-    }
-    // ===================== RENDER BOARD =====================
-    function renderBoard() {
-        const boardEl = document.getElementById('board');
-        boardEl.innerHTML = '';
-
-        for (let row = 0; row < 8; row++) {
-            for (let col = 0; col < 8; col++) {
-                const r = boardFlipped ? 7 - row : row;
-                const c = boardFlipped ? 7 - col : col;
-                const square = String.fromCharCode(97 + c) + (8 - r);
-                const piece = game.get(square);
-
-                const squareEl = document.createElement('div');
-                squareEl.className = 'square ' + ((r + c) % 2 === 0 ? 'light' : 'dark');
-
-                if (selectedSquare === square) squareEl.classList.add('selected');
-                if (highlights.includes(square)) squareEl.classList.add('highlight');
-                if ((square === lastFromSquare || square === lastToSquare) && moveCount > 0) {
-                    squareEl.classList.add('last-move');
-                }
-
-                if (piece) {
-                    squareEl.textContent = pieceSymbols[piece.type];
-                    squareEl.style.color = piece.color === 'w' ? '#fff' : '#000';
-                    squareEl.style.textShadow = piece.color === 'w' ? '2px 2px 4px #000' : '1px 1px 3px #fff';
-                }
-
-                squareEl.addEventListener('click', () => handleSquareClick(square));
-                boardEl.appendChild(squareEl);
-            }
-        }
-    }
-
-    // ===================== HANDLE SQUARE CLICK =====================
-    function handleSquareClick(square) {
-        if (aiThinking || game.game_over()) return;
-
-        const piece = game.get(square);
-
-        if (selectedSquare && piece && game.get(selectedSquare).color === piece.color) {
-            selectedSquare = square;
-            highlights = game.moves({ square, verbose: true }).map(m => m.to);
-        } else if (selectedSquare) {
-            const move = game.move({ from: selectedSquare, to: square, promotion: 'q' });
-
-            if (move) {
-                lastFromSquare = selectedSquare;
-                lastToSquare = square;
-                moveCount++;
-                selectedSquare = null;
-                highlights = [];
-
-                evaluateMoveQuality(move);
-
-                const mode = document.getElementById('gameMode').value;
-                if ((mode === 'vs-ia' || mode === 'coach') && !game.game_over()) {
-                    aiThinking = true;
-                    setTimeout(makeAIMove, 1500);
-                }
-
-                updateUI();
-            } else {
-                selectedSquare = null;
-                highlights = [];
-            }
-        } else if (piece && piece.color === game.turn()) {
-            selectedSquare = square;
-            highlights = game.moves({ square, verbose: true }).map(m => m.to);
-        }
-
-        renderBoard();
-    }
-
     // ===================== FEEDBACK DEL ENTRENADOR =====================
     function giveCoachFeedback(type) {
         const mode = document.getElementById('gameMode').value;
@@ -674,32 +579,6 @@
     function closeAnalysis() {
         document.getElementById('analysisModal').classList.remove('active');
     }
-// ===================== ANÁLISIS DE POSICIÓN =====================
-function performAnalysis() {
-    const history = game.history({ verbose: true });
-    const score = engineEval;
-    const moves = history.slice(-10); // Últimos 10 movimientos para mostrar en PV
-    const material = calculateMaterial();
-    const phase = history.length < 10 ? 'Apertura' : history.length < 40 ? 'Medio Juego' : 'Final';
-
-    const prob = calculateWinProbabilities(score);
-
-    // Actualizar modal de análisis
-    document.getElementById('whiteWinProb').innerHTML = prob.white + '%';
-    document.getElementById('drawProb').innerHTML = prob.draw + '%';
-    document.getElementById('blackWinProb').innerHTML = prob.black + '%';
-    document.getElementById('anyWinProb').innerHTML = prob.decisive + '%';
-    document.getElementById('currentScore').innerHTML = score.toFixed(2);
-    document.getElementById('analysisDepth').innerHTML = '20 movimientos';
-    document.getElementById('bestMoveAnalysis').innerHTML = moves.length > 0 ? moves[0].san : '-';
-    document.getElementById('materialEval').innerHTML = material.toFixed(2);
-    document.getElementById('openingEval').innerHTML = history.length < 10 ? score.toFixed(2) : '-';
-    document.getElementById('middlegameEval').innerHTML = phase === 'Medio Juego' ? score.toFixed(2) : '-';
-    document.getElementById('endgameEval').innerHTML = phase === 'Final' ? score.toFixed(2) : '-';
-    document.getElementById('principalVariation').innerHTML = moves.map(m => m.san).join(' - ');
-    document.getElementById('analysisStatus').innerHTML = '✅ Análisis completado';
-    document.getElementById('analysisLoading').style.display = 'none';
-}
 
 // ===================== CALCULAR MATERIAL =====================
 function calculateMaterial() {
@@ -768,19 +647,6 @@ function updateLastMoveInfo() {
     lastMoveEl.style.display = 'grid';
 }
 
-// ===================== EVALUAR CALIDAD DEL MOVIMIENTO =====================
-function evaluateMoveQuality(move) {
-    const prevEval = lastEval;
-    lastEval = engineEval;
-    const newEval = engineEval;
-
-    const quality = evaluatePlayerMove(prevEval, newEval);
-    giveCoachFeedback(quality);
-
-    if (quality === 'excellent' || quality === 'good') goodMoves++;
-    else if (quality === 'mistake' || quality === 'blunder') badMoves++;
-}
-
 // ===================== CONVERTIR CENTIPAWNS A GANANCIA =====================
 function cpToWinProbability(cp) {
     return 1 / (1 + Math.exp(-cp / 2.5));
@@ -819,20 +685,6 @@ function loadGame() {
     stats = data.stats;
     updateUI();
 }
-// ===================== INICIALIZAR MOTOR =====================
-const engine = Stockfish();
-let engineReady = false;
-let engineEval = 0;
-let engineBestMove = null;
-let enginePV = "";
-
-engine.onmessage = (event) => {
-    const line = event.data;
-    handleEngineOutput(line);
-};
-
-engine.postMessage("uci");
-engine.postMessage("isready");
 
 // ===================== PROCESAR SALIDA DEL MOTOR =====================
 function handleEngineOutput(line) {
