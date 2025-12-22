@@ -732,6 +732,8 @@
 
     <script>
         const game = new Chess();
+        let engine = null;
+        let engineReady = false;
         let selectedSquare = null;
         let highlights = [];
         let lastFromSquare = null;
@@ -743,7 +745,6 @@
         let aiThinking = false;
         let playerElo = 1600;
         let lastEval = 0;
-        let moveEvals = {};
         let stats = { totalGames: 0, maxElo: 1600, sessions: 0 };
 
         const pieceSymbols = {
@@ -751,66 +752,87 @@
             'p': '♟', 'r': '♜', 'n': '♞', 'b': '♝', 'q': '♛', 'k': '♚'
         };
 
-        const coachPhrases = {
-            excellent: ["¡Perfecto! Esa es la mejor jugada.", "Increíble, análisis excelente.", "¡Optimo movimiento!"],
-            good: ["Buen movimiento.", "Sigue así, buena elección.", "Movimiento sólido."],
-            mistake: ["Hay movimientos mejores.", "No es la mejor opción aquí.", "Cuidado con tu posición."],
-            blunder: ["¡Error grave!", "Pierdes ventaja importante.", "¡Cuidado, este movimiento es malo!"]
-        };
-
-        // ===================== EVALUACIÓN CON LÓGICA SOFISTICADA =====================
-        function evaluatePosition() {
-            const board = game.board();
-            let score = 0;
-            const pieceValues = { 'p': 1, 'n': 3, 'b': 3.25, 'r': 5, 'q': 9, 'k': 0 };
-            
-            // Valoraciones posicionales
-            const pstWhite = {
-                'p': [0,0,0,0,0,0,0,0, 5,5,5,5,5,5,5,5, 1,1,2,3,3,2,1,1, 1,1,2,4,4,2,1,1, 1,1,2,3,3,2,1,1, 1,1,2,3,3,2,1,1, 1,1,2,2,2,2,1,1, 0,0,0,0,0,0,0,0],
-                'n': [0,1,2,2,2,2,1,0, 1,2,4,4,4,4,2,1, 2,4,5,6,6,5,4,2, 2,4,6,7,7,6,4,2, 2,4,6,7,7,6,4,2, 2,4,5,6,6,5,4,2, 1,2,4,4,4,4,2,1, 0,1,2,2,2,2,1,0],
-                'b': [0,0,0,0,0,0,0,0, 0,2,1,1,1,1,2,0, 0,1,2,3,3,2,1,0, 0,1,3,3,3,3,1,0, 0,1,3,3,3,3,1,0, 0,1,2,3,3,2,1,0, 0,2,1,1,1,1,2,0, 0,0,0,0,0,0,0,0],
-                'r': [0,0,0,0,0,0,0,0, 1,1,1,1,1,1,1,1, 0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0],
-                'q': [0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0, 0,0,1,1,1,1,0,0, 0,0,1,1,1,1,0,0, 0,0,1,1,1,1,0,0, 0,0,1,1,1,1,0,0, 0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0],
-                'k': [0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0]
-            };
-
-            for (let i = 0; i < 8; i++) {
-                for (let j = 0; j < 8; j++) {
-                    const piece = board[i][j];
-                    if (!piece) continue;
-                    const val = pieceValues[piece.type] || 0;
-                    const index = i * 8 + j;
-                    const pst = pstWhite[piece.type]?.[index] || 0;
-                    
-                    if (piece.color === 'w') {
-                        score += val + pst * 0.1;
-                    } else {
-                        score -= val + pst * 0.1;
-                    }
-                }
+        // ===================== INICIALIZAR STOCKFISH =====================
+        async function initEngine() {
+            try {
+                engine = await Stockfish();
+                engine.onmessage = function(line) {
+                    console.log('Stockfish:', line);
+                };
+                engineReady = true;
+                document.getElementById('coachMessage').innerHTML = '<strong>✅ Motor Listo!</strong> Juega contra Stockfish real.';
+            } catch(e) {
+                console.error('Error cargando Stockfish:', e);
+                document.getElementById('coachMessage').innerHTML = '<strong>⚠️ Error</strong> No se pudo cargar Stockfish.';
             }
-
-            // Bonificación por movilidad
-            const moves = game.moves();
-            score += moves.length * 0.05;
-
-            return score;
         }
 
-        function calculateWinProbability() {
-            const eval_score = evaluatePosition();
-            const sigmoid = (x) => 1 / (1 + Math.exp(-x / 150));
-            
-            const whiteWin = sigmoid(eval_score) * 0.85;
-            const blackWin = sigmoid(-eval_score) * 0.85;
-            const draw = 1 - whiteWin - blackWin;
+        // ===================== EVALUAR CON STOCKFISH =====================
+        function evaluatePosition(depth = 20) {
+            return new Promise((resolve) => {
+                if (!engineReady || !engine) {
+                    resolve({ score: 0, bestMove: null, winChance: 50 });
+                    return;
+                }
 
-            return {
-                white: Math.round(whiteWin * 100),
-                black: Math.round(blackWin * 100),
-                draw: Math.round(draw * 100),
-                decisive: Math.round((whiteWin + blackWin) * 100)
-            };
+                let bestMove = null;
+                let score = 0;
+                let depth_reached = 0;
+
+                const handler = (line) => {
+                    if (line.includes('bestmove')) {
+                        engine.removeEventListener('message', handler);
+                        const winChance = Math.round(50 + Math.min(Math.max(score * 2, -50), 50));
+                        resolve({ score, bestMove, winChance, depth: depth_reached });
+                    } else {
+                        if (line.includes('score cp')) {
+                            const match = line.match(/score cp (-?\d+)/);
+                            if (match) score = parseInt(match[1]) / 100;
+                        }
+                        if (line.includes('pv ')) {
+                            const match = line.match(/bestmove (\S+)/);
+                            if (match) bestMove = match[1];
+                        }
+                        if (line.includes('depth')) {
+                            const match = line.match(/depth (\d+)/);
+                            if (match) depth_reached = parseInt(match[1]);
+                        }
+                    }
+                };
+
+                engine.addEventListener('message', handler);
+                engine.postMessage('position fen ' + game.fen());
+                engine.postMessage('go depth ' + depth);
+            });
+        }
+
+        // ===================== OBTENER MEJOR MOVIMIENTO =====================
+        async function getBestMove(elo = 1600) {
+            return new Promise(async (resolve) => {
+                const result = await evaluatePosition(20);
+                if (!result.bestMove) {
+                    const moves = game.moves({ verbose: true });
+                    resolve(moves[0]);
+                    return;
+                }
+
+                // Según ELO, elegir variabilidad
+                const eloThresholds = { 400: 0.8, 1200: 0.6, 1800: 0.3, 2400: 0.1, 3000: 0 };
+                const threshold = eloThresholds[elo] || 0.3;
+
+                if (Math.random() < threshold) {
+                    const moves = game.moves({ verbose: true });
+                    resolve(moves[Math.floor(Math.random() * Math.min(3, moves.length))]);
+                } else {
+                    // Convertir movimiento de Stockfish a objeto chess.js
+                    const from = result.bestMove.substring(0, 2);
+                    const to = result.bestMove.substring(2, 4);
+                    const promotion = result.bestMove.length > 4 ? result.bestMove[4] : undefined;
+                    const moveObj = game.move({ from, to, promotion });
+                    game.undo();
+                    resolve(moveObj);
+                }
+            });
         }
 
         // ===================== RENDER BOARD =====================
@@ -866,14 +888,13 @@
                     highlights = [];
 
                     evaluateMoveQuality(move);
+                    updateUI();
 
                     const mode = document.getElementById('gameMode').value;
                     if ((mode === 'vs-ia' || mode === 'coach') && !game.game_over()) {
                         aiThinking = true;
                         setTimeout(makeAIMove, 1500);
                     }
-
-                    updateUI();
                 } else {
                     selectedSquare = null;
                     highlights = [];
