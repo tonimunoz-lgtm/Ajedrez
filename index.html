@@ -586,74 +586,86 @@
         </div>
     </div>
     <script>
-        
         const game = new Chess();
         let selectedSquare = null;
         let highlights = [];
-        let playerElo = 1600;
-        let moveCount = 0;
-        let stats = { totalGames: 0, maxElo: 1600, sessions: 0 };
+        let lastFromSquare = null;
+        let lastToSquare = null;
         let moveHistory = [];
         let boardFlipped = false;
-        let gameEvalHistory = [];
         let aiThinking = false;
+        let moveCount = 0;
+        let goodMoves = 0;
 
         const pieceSymbols = {
             'P': '♙', 'R': '♖', 'N': '♘', 'B': '♗', 'Q': '♕', 'K': '♔',
             'p': '♟', 'r': '♜', 'n': '♞', 'b': '♝', 'q': '♛', 'k': '♚'
         };
 
-        // IA mejorada con mejor evaluación
-        function evaluatePosition(fen) {
-            const tempGame = new Chess(fen);
+        // Frases del entrenador en castellano
+        const coachPhrases = {
+            good: [
+                "¡Excelente movimiento! Has controlado el centro.",
+                "Muy bien, has mejorado tu posición.",
+                "Buena jugada, tus piezas están mejor coordinadas.",
+                "Perfecto, mantienes la iniciativa.",
+                "¡Bien visto! Ese era el movimiento correcto."
+            ],
+            bad: [
+                "Cuidado, ese movimiento debilita tu posición.",
+                "No es la mejor opción. Considera otros movimientos.",
+                "Ese movimiento pierde material sin compensación.",
+                "Deberías proteger mejor tus piezas.",
+                "¡Error! Eso te pone en desventaja."
+            ],
+            opening: [
+                "En la apertura, controla el centro con peones.",
+                "Desarrolla tus piezas menores antes de enrocar.",
+                "Enroca pronto para poner tu rey en seguridad.",
+                "Mueve cada pieza una sola vez en la apertura.",
+                "No saques la reina demasiado pronto."
+            ]
+        };
+
+        const openings = {
+            'rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR': 'Peón de Rey',
+            'rnbqkbnr/pppppppp/8/8/2P5/8/PP1PPPPP/RNBQKBNR': 'Gambito de Dama',
+            'rnbqkbnr/pppppppp/8/8/3P4/8/PPP1PPPP/RNBQKBNR': 'Peón de Dama'
+        };
+
+        function evaluateSimple() {
+            const board = game.board();
             let score = 0;
-
-            // Evaluar material
-            const pieces = {
-                'P': 1, 'N': 3, 'B': 3, 'R': 5, 'Q': 9, 'K': 0,
-                'p': -1, 'n': -3, 'b': -3, 'r': -5, 'q': -9, 'k': 0
-            };
-
-            for (let square of tempGame.SQUARES) {
-                const piece = tempGame.get(tempGame.SQUARE_TO_COORD(square));
-                if (piece) {
-                    score += pieces[piece.type] * (piece.color === 'w' ? 1 : -1);
+            const pieceValues = { 'p': 1, 'n': 3, 'b': 3, 'r': 5, 'q': 9, 'k': 0 };
+            
+            for (let row of board) {
+                for (let piece of row) {
+                    if (!piece) continue;
+                    const val = pieceValues[piece.type] || 0;
+                    score += piece.color === 'w' ? val : -val;
                 }
             }
-
-            // Evaluar control central
-            const center = ['d4', 'e4', 'd5', 'e5'];
-            for (let sq of center) {
-                const p = tempGame.get(sq);
-                if (p) score += (p.color === 'w' ? 0.5 : -0.5);
-            }
-
-            // Evaluar seguridad del rey
-            const moves = tempGame.moves({ verbose: true });
-            score += moves.length * 0.1;
-
             return score;
         }
 
-        function getBestMove(depth) {
+        function getBestMove() {
             const moves = game.moves({ verbose: true });
-            if (moves.length === 0) return null;
+            if (!moves.length) return null;
 
-            let bestMove = moves[0];
+            let best = moves[0];
             let bestScore = -Infinity;
 
-            for (let move of moves.slice(0, Math.min(moves.length, Math.max(3, 20 - depth * 3)))) {
+            for (let move of moves.slice(0, Math.min(30, moves.length))) {
                 game.move(move);
-                const score = -evaluatePosition(game.fen());
+                const score = -evaluateSimple();
                 game.undo();
 
                 if (score > bestScore) {
                     bestScore = score;
-                    bestMove = move;
+                    best = move;
                 }
             }
-
-            return bestMove;
+            return best;
         }
 
         function renderBoard() {
@@ -692,23 +704,27 @@
             if (aiThinking || game.game_over()) return;
 
             const piece = game.get(square);
-            
+
             if (selectedSquare && piece && game.get(selectedSquare).color === piece.color) {
                 selectedSquare = square;
                 highlights = game.moves({ square, verbose: true }).map(m => m.to);
             } else if (selectedSquare) {
                 const move = game.move({ from: selectedSquare, to: square, promotion: 'q' });
-                
+
                 if (move) {
+                    lastFromSquare = selectedSquare;
+                    lastToSquare = square;
                     moveCount++;
                     selectedSquare = null;
                     highlights = [];
-                    evaluateMove(move);
+
+                    evaluateMoveQuality(move);
                     updateUI();
-                    
-                    if (document.getElementById('gameMode').value === 'stockfish' && !game.game_over()) {
+
+                    const mode = document.getElementById('gameMode').value;
+                    if ((mode === 'vs-ia' || mode === 'coach') && !game.game_over()) {
                         aiThinking = true;
-                        setTimeout(makeAIMove, 1000);
+                        setTimeout(makeAIMove, 1200);
                     }
                 } else {
                     selectedSquare = null;
@@ -718,7 +734,7 @@
                 selectedSquare = square;
                 highlights = game.moves({ square, verbose: true }).map(m => m.to);
             }
-            
+
             renderBoard();
         }
 
@@ -730,7 +746,6 @@
                 goodMoves++;
                 giveCoachFeedback('good');
             } else {
-                badMoves++;
                 giveCoachFeedback('bad');
             }
         }
@@ -743,10 +758,10 @@
             const phrase = phrases[Math.floor(Math.random() * phrases.length)];
             
             const coachMsg = document.getElementById('coachMessage');
-            coachMsg.innerHTML = '<strong>' + (type === 'good' ? '✅' : '❌') + '</strong>' + phrase;
+            coachMsg.textContent = phrase;
             coachMsg.className = 'coach-message ' + (type === 'good' ? 'good' : 'bad');
         }
-        
+
         function makeAIMove() {
             const moves = game.moves({ verbose: true });
             if (!moves.length) {
@@ -776,17 +791,14 @@
 
             updateUI();
             aiThinking = false;
-
-            if (game.game_over()) {
-                showGameOver();
-            }
         }
-       function updateUI() {
+
+        function updateUI() {
             renderBoard();
             updateEvalBar();
             updateLastMoveInfo();
-            updateMoveHistory();
             updateStats();
+            showSuggestion();
 
             if (game.game_over()) {
                 showGameOver();
@@ -794,14 +806,12 @@
         }
 
         function updateEvalBar() {
-            const score = evaluatePosition();
-            const percentage = Math.max(0, Math.min(100, 50 + score * 5));
-            
+            const score = evaluateSimple();
+            const percentage = 50 + Math.max(-40, Math.min(40, score / 2));
             const fillEl = document.getElementById('evalBarFill');
+
             fillEl.style.height = percentage + '%';
             fillEl.textContent = Math.round(percentage) + '%';
-
-            document.getElementById('evalScore').textContent = Math.round(percentage) + '%';
 
             if (percentage > 55) {
                 fillEl.className = 'eval-bar-fill white-advantage';
@@ -812,82 +822,59 @@
             }
         }
 
-       function updateLastMoveInfo() {
+        function updateLastMoveInfo() {
             if (moveCount === 0) {
                 document.getElementById('lastMoveInfo').style.display = 'none';
                 return;
             }
 
             document.getElementById('lastMoveInfo').style.display = 'grid';
-            const history = game.history({ verbose: true });
-            if (history.length > 0) {
-                document.getElementById('playerLastMove').textContent = history[history.length - 2]?.san || '-';
-                document.getElementById('aiLastMove').textContent = history[history.length - 1]?.san || '-';
+            const lastMove = game.history({ verbose: true }).slice(-1)[0];
+            if (lastMove) {
+                const isPlayerMove = moveCount % 2 === 1;
+                if (isPlayerMove) {
+                    document.getElementById('playerLastMove').textContent = lastMove.san;
+                } else {
+                    document.getElementById('aiLastMove').textContent = lastMove.san;
+                }
             }
         }
-        
-        function updateMoveHistory() {
-            const hist = document.getElementById('moveHistory');
-            hist.innerHTML = '';
-            moveHistory.forEach((item, idx) => {
-                const div = document.createElement('div');
-                div.className = 'move-item';
-                const moveNum = Math.floor(idx / 2) + 1;
-                const color = idx % 2 === 0 ? '⚪' : '⚫';
-                div.innerHTML = `${color} ${moveNum}. <strong>${item.move}</strong> <span class="move-quality quality-${item.quality}">${item.quality}</span>`;
-                hist.appendChild(div);
-            });
+
+        function showSuggestion() {
+            const mode = document.getElementById('gameMode').value;
+            if (mode === 'free' || game.turn() === 'b') return;
+
+            const best = getBestMove();
+            if (!best) return;
+
+            const suggestionBox = document.getElementById('suggestionBox');
+            document.getElementById('suggestionMove').textContent = best.san;
+            
+            const reasons = [
+                'Mejora tu posición',
+                'Controla el centro',
+                'Protege tus piezas',
+                'Crea amenazas',
+                'Es el movimiento más fuerte'
+            ];
+            document.getElementById('suggestionReason').textContent = reasons[Math.floor(Math.random() * reasons.length)];
+            suggestionBox.style.display = 'block';
         }
 
         function updateStats() {
-            const good = moveHistory.filter(m => m.quality === 'good').length;
-            const bad = moveHistory.filter(m => m.quality === 'inaccuracy').length;
-            const accuracy = moveHistory.length > 0 ? Math.round((good / moveHistory.length) * 100) : 0;
-            
-            document.getElementById('accuracy').textContent = accuracy + '%';
-            document.getElementById('bestMoves').textContent = good;
-            document.getElementById('mistakes').textContent = bad;
-            document.getElementById('totalGames').textContent = stats.totalGames;
-            document.getElementById('maxElo').textContent = stats.maxElo;
-            document.getElementById('sessions').textContent = stats.sessions;
-            document.getElementById('aiLevel').textContent = document.getElementById('difficulty').value;
-        }
+            document.getElementById('moveCount').textContent = moveCount;
+            const accuracy = moveCount > 0 ? Math.round((goodMoves / (moveCount / 2)) * 100) : 0;
+            document.getElementById('accuracy').textContent = Math.min(100, accuracy) + '%';
 
-        function updatePhase() {
-            const phase = moveCount < 8 ? '📖 Apertura' : moveCount < 30 ? '⚔️ Medio Juego' : '👑 Final';
-            document.getElementById('gamePhase').textContent = phase;
-        }
-
-        function requestHint() {
-            const moves = game.moves({ verbose: true });
-            if (moves.length) {
-                const hint = getBestMove(3);
-                alert(`💡 Pista: ${hint.san}`);
+            const fen = game.fen();
+            for (const [pos, name] of Object.entries(openings)) {
+                if (fen.startsWith(pos.split(' ')[0])) {
+                    const openingEl = document.getElementById('openingInfo');
+                    document.getElementById('openingName').textContent = name;
+                    openingEl.style.display = 'block';
+                    break;
+                }
             }
-        }
-
-        function resetGame() {
-            game.reset();
-            selectedSquare = null;
-            highlights = [];
-            moveHistory = [];
-            moveCount = 0;
-            playerElo = 1600;
-            updateUI();
-        }
-
-        function undoMove() {
-            if (game.moves().length > 0) {
-                game.undo();
-                moveHistory.pop();
-                moveCount--;
-                updateUI();
-            }
-        }
-
-        function flipBoard() {
-            boardFlipped = !boardFlipped;
-            renderBoard();
         }
 
         function showGameOver() {
@@ -909,7 +896,36 @@
             modal.classList.add('active');
         }
 
-        document.getElementById('gameMode').addEventListener('change', resetGame);
+        function requestHint() {
+            const best = getBestMove();
+            if (best) alert(`💡 Pista: ${best.san}`);
+        }
+
+        function resetGame() {
+            game.reset();
+            selectedSquare = null;
+            highlights = [];
+            lastFromSquare = null;
+            lastToSquare = null;
+            moveHistory = [];
+            moveCount = 0;
+            goodMoves = 0;
+            aiThinking = false;
+            document.getElementById('gameOverModal').classList.remove('active');
+            updateUI();
+        }
+
+        function undoMove() {
+            if (moveCount > 0) {
+                game.undo();
+                moveCount--;
+                updateUI();
+            }
+        }
+
+        function analysisMode() {
+            alert('📊 Análisis de partida: Próximamente se agregará pantalla de análisis detallado con recomendaciones');
+        }
 
         renderBoard();
         updateUI();
