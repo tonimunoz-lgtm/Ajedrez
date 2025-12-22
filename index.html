@@ -939,6 +939,8 @@
             alert('📊 Análisis de partida: Próximamente se agregará pantalla de análisis detallado con recomendaciones');
         }
 
+        document.getElementById('gameMode').addEventListener('change', resetGame);
+
         renderBoard();
         updateUI();
     </script>
