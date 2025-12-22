@@ -644,13 +644,14 @@
         }
     };
 
-    function sendPositionToStockfish(fen) {
-        if (!engineReady) engine.postMessage('uci');
-        engine.postMessage('position fen ' + fen);
-        engine.postMessage('go depth 15');
-        engineBestMove = null;
-        engineEval = null;
-    }
+    function sendPositionToStockfish(fen, depth=15) {
+    if (!engineReady) engine.postMessage('uci');
+    engine.postMessage('ucinewgame');
+    engine.postMessage('position fen ' + fen);
+    engine.postMessage('go depth ' + depth);
+    engineBestMove = null;
+    engineEval = null;
+}
 
     function getStockfishBestMove(callback) {
         const checkInterval = setInterval(() => {
@@ -789,17 +790,18 @@ function evaluateMoveQuality(move) {
     }
 
     function makeAIMove() {
-        const moves = game.moves({ verbose: true });
-        if (!moves.length) { aiThinking = false; return; }
+    if (game.game_over()) return;
+    aiThinking = true;
 
-        const difficulty = parseInt(document.getElementById('difficulty').value);
-        let move;
-        if (difficulty === 1) move = moves[Math.floor(Math.random() * Math.min(3, moves.length))];
-        else if (difficulty === 2) move = moves[Math.floor(Math.random() * Math.min(8, moves.length))];
-        else if (difficulty === 3) move = moves[Math.floor(Math.random() * Math.min(15, moves.length))];
-        else if (difficulty === 4) move = moves[Math.floor(Math.random() * Math.min(25, moves.length))];
-        else move = engineBestMove || moves[0];
+    const difficulty = parseInt(document.getElementById('difficulty').value);
+    const depthMap = {1: 5, 2: 10, 3: 15, 4: 18, 5: 20};
+    const depth = depthMap[difficulty] || 15;
 
+    sendPositionToStockfish(game.fen(), depth);
+
+    getStockfishBestMove((bestUci) => {
+        if (!bestUci) { aiThinking = false; return; }
+        const move = { from: bestUci.slice(0,2), to: bestUci.slice(2,4), promotion: 'q' };
         game.move(move);
         lastFromSquare = move.from;
         lastToSquare = move.to;
@@ -808,7 +810,9 @@ function evaluateMoveQuality(move) {
         aiThinking = false;
 
         if (game.game_over()) showGameOver();
-    }
+    });
+}
+
 
     // ================= Actualización UI =================
     function updateUI() {
