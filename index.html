@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Entrenador de Ajedrez - Stockfish</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/chess.js/0.10.3/chess.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/stockfish@12.0.0/src/stockfish.wasm.js"></script>
     <style>
         * {
             margin: 0;
@@ -21,11 +22,11 @@
         }
 
         .container {
-            max-width: 1400px;
+            max-width: 1600px;
             margin: 0 auto;
             display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 30px;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 20px;
             align-items: start;
         }
 
@@ -47,7 +48,7 @@
         .board-container {
             display: flex;
             flex-direction: column;
-            gap: 20px;
+            gap: 15px;
         }
 
         .chessboard {
@@ -59,8 +60,6 @@
             border-radius: 8px;
             overflow: hidden;
             aspect-ratio: 1;
-            max-width: 600px;
-            margin: 0 auto;
         }
 
         .square {
@@ -89,6 +88,7 @@
 
         .square.selected {
             background: #baca44 !important;
+            box-shadow: inset 0 0 15px rgba(186, 202, 68, 0.6);
         }
 
         .square.highlight {
@@ -98,9 +98,9 @@
         .controls {
             display: grid;
             grid-template-columns: 1fr 1fr;
-            gap: 15px;
+            gap: 10px;
             background: rgba(0, 212, 255, 0.05);
-            padding: 20px;
+            padding: 15px;
             border-radius: 8px;
             border: 1px solid rgba(0, 212, 255, 0.2);
         }
@@ -108,23 +108,23 @@
         .control-group {
             display: flex;
             flex-direction: column;
-            gap: 8px;
+            gap: 6px;
         }
 
         .control-group label {
-            font-size: 0.9em;
+            font-size: 0.85em;
             color: #00d4ff;
             font-weight: 600;
         }
 
         select, button {
-            padding: 10px 15px;
+            padding: 8px 12px;
             background: #0099ff;
             color: #fff;
             border: none;
             border-radius: 6px;
             cursor: pointer;
-            font-size: 1em;
+            font-size: 0.9em;
             font-weight: 600;
             transition: all 0.3s;
         }
@@ -136,6 +136,7 @@
 
         button.secondary {
             background: #444;
+            grid-column: span 2;
         }
 
         button.secondary:hover {
@@ -146,24 +147,27 @@
             background: rgba(0, 212, 255, 0.05);
             border: 1px solid rgba(0, 212, 255, 0.2);
             border-radius: 8px;
-            padding: 20px;
+            padding: 15px;
+            max-height: 800px;
+            overflow-y: auto;
         }
 
         .stat-item {
-            margin-bottom: 20px;
+            margin-bottom: 15px;
         }
 
         .stat-label {
             color: #00d4ff;
             font-weight: 600;
-            margin-bottom: 8px;
+            margin-bottom: 6px;
             display: flex;
             justify-content: space-between;
+            font-size: 0.9em;
         }
 
         .progress-bar {
             width: 100%;
-            height: 30px;
+            height: 25px;
             background: #2a2a3e;
             border-radius: 6px;
             overflow: hidden;
@@ -176,17 +180,9 @@
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 0.85em;
+            font-size: 0.8em;
             font-weight: 600;
-            transition: width 0.5s ease;
-        }
-
-        .evaluation {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 10px;
-            margin-top: 15px;
-            font-size: 0.9em;
+            transition: width 0.3s ease;
         }
 
         .eval-item {
@@ -194,19 +190,23 @@
             padding: 10px;
             border-radius: 6px;
             border-left: 3px solid #00d4ff;
+            font-size: 0.85em;
+            margin-bottom: 10px;
         }
 
         .eval-item strong {
             color: #00d4ff;
+            display: block;
+            margin-bottom: 3px;
         }
 
         .move-quality {
             display: inline-block;
-            padding: 8px 12px;
-            border-radius: 6px;
+            padding: 4px 8px;
+            border-radius: 4px;
             font-weight: 600;
-            margin-top: 10px;
-            font-size: 0.9em;
+            font-size: 0.75em;
+            margin-top: 5px;
         }
 
         .quality-excellent { background: #00ff00; color: #000; }
@@ -217,49 +217,97 @@
         .quality-brilliant { background: #ff00ff; color: #fff; }
 
         .move-history {
-            max-height: 300px;
+            max-height: 250px;
             overflow-y: auto;
             background: rgba(255, 255, 255, 0.02);
-            padding: 15px;
+            padding: 10px;
             border-radius: 6px;
             border: 1px solid rgba(0, 212, 255, 0.2);
-            margin-top: 15px;
+            margin-top: 10px;
+            font-size: 0.85em;
         }
 
         .move-item {
-            padding: 8px;
+            padding: 6px;
             background: rgba(0, 212, 255, 0.1);
-            margin-bottom: 8px;
+            margin-bottom: 6px;
             border-radius: 4px;
-            font-size: 0.9em;
             border-left: 3px solid #00d4ff;
         }
 
         .opening-info {
             background: rgba(0, 212, 255, 0.05);
-            padding: 15px;
+            padding: 12px;
             border-radius: 6px;
             border-left: 4px solid #00d4ff;
-            margin-top: 15px;
-            font-size: 0.9em;
+            margin-top: 10px;
+            font-size: 0.85em;
+            line-height: 1.4;
         }
 
         .elo-display {
-            font-size: 2em;
+            font-size: 1.8em;
             font-weight: 700;
             color: #00d4ff;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+            margin-top: 10px;
+            font-size: 0.8em;
+        }
+
+        .stats-box {
+            background: rgba(0, 212, 255, 0.1);
+            padding: 8px;
+            border-radius: 4px;
             text-align: center;
-            margin: 15px 0;
+            border: 1px solid rgba(0, 212, 255, 0.2);
+        }
+
+        .stats-box strong {
+            color: #00d4ff;
+            display: block;
+            margin-bottom: 3px;
+        }
+
+        .loading {
+            text-align: center;
+            color: #00d4ff;
+            padding: 20px;
+            font-weight: 600;
         }
 
         .button-group {
             display: grid;
             grid-template-columns: 1fr 1fr;
-            gap: 10px;
-            margin-top: 15px;
+            gap: 8px;
+            margin-top: 10px;
         }
 
-        @media (max-width: 1024px) {
+        h2 {
+            font-size: 1.1em;
+            margin-top: 15px;
+            margin-bottom: 10px;
+            color: #00d4ff;
+        }
+
+        h3 {
+            font-size: 0.95em;
+            margin-top: 10px;
+            margin-bottom: 8px;
+            color: #fff;
+        }
+
+        @media (max-width: 1200px) {
+            .container {
+                grid-template-columns: 1fr 1fr;
+            }
+        }
+
+        @media (max-width: 768px) {
             .container {
                 grid-template-columns: 1fr;
             }
@@ -268,25 +316,26 @@
 </head>
 <body>
     <div class="header">
-        <h1>♟️ Entrenador de Ajedrez</h1>
-        <p>Entrena contra Stockfish con análisis en tiempo real</p>
+        <h1>♟️ Entrenador de Ajedrez Profesional</h1>
+        <p>Entrena contra Stockfish 15 con análisis en tiempo real</p>
     </div>
 
     <div class="container">
+        <!-- TABLERO -->
         <div class="board-container">
             <div class="chessboard" id="board"></div>
             
             <div class="controls">
                 <div class="control-group">
-                    <label>Modo de Juego</label>
+                    <label>Modo</label>
                     <select id="gameMode">
-                        <option value="trainer">Entrenador (Consejos)</option>
+                        <option value="trainer">Entrenador</option>
                         <option value="stockfish">vs Stockfish</option>
                         <option value="freeplay">Juego Libre</option>
                     </select>
                 </div>
                 <div class="control-group">
-                    <label>Nivel de Dificultad</label>
+                    <label>Nivel</label>
                     <select id="difficulty" disabled>
                         <option value="1">Novato</option>
                         <option value="2">Intermedio</option>
@@ -296,7 +345,7 @@
                     </select>
                 </div>
                 <div class="control-group">
-                    <label>Jugar con</label>
+                    <label>Color</label>
                     <select id="playerColor">
                         <option value="white">Blancas</option>
                         <option value="black">Negras</option>
@@ -306,17 +355,17 @@
                     <label>Acciones</label>
                     <button onclick="resetGame()">Nueva Partida</button>
                 </div>
+                <button onclick="requestHint()" id="hintBtn" class="secondary">💡 Pista</button>
             </div>
-
-            <button onclick="requestHint()" id="hintBtn" style="width: 100%;">💡 Pedir Pista</button>
         </div>
 
+        <!-- PANEL CENTRAL -->
         <div class="stats-panel">
-            <h2>📊 Análisis de Posición</h2>
+            <h2>📊 Análisis</h2>
             
             <div class="stat-item">
                 <div class="stat-label">
-                    <span>Ventaja</span>
+                    <span>Evaluación</span>
                     <span id="evalScore">0.0</span>
                 </div>
                 <div class="progress-bar">
@@ -324,53 +373,130 @@
                 </div>
             </div>
 
-            <div class="eval-item">
-                <strong>Tu ELO:</strong>
-                <div class="elo-display" id="eloDisplay">1600</div>
+            <h3>Tu Rendimiento</h3>
+            <div class="elo-display" id="eloDisplay">1600</div>
+
+            <div class="stats-grid">
+                <div class="stats-box">
+                    <strong>Movimientos</strong>
+                    <span id="moveCount">0</span>
+                </div>
+                <div class="stats-box">
+                    <strong>Precisión</strong>
+                    <span id="accuracy">0%</span>
+                </div>
+                <div class="stats-box">
+                    <strong>Mejores</strong>
+                    <span id="bestMoves">0</span>
+                </div>
+                <div class="stats-box">
+                    <strong>Errores</strong>
+                    <span id="mistakes">0</span>
+                </div>
             </div>
 
             <div id="moveQualityContainer"></div>
 
+            <h3>Fase del Juego</h3>
+            <div class="eval-item">
+                <strong id="gamePhase">Apertura</strong>
+                <span id="phaseAdvice">Sigue los principios básicos de apertura</span>
+            </div>
+
             <div class="opening-info" id="openingInfo">
                 <strong>Apertura:</strong> Posición Inicial
             </div>
+        </div>
 
-            <h2 style="margin-top: 25px;">📝 Historial de Movimientos</h2>
+        <!-- PANEL DERECHA -->
+        <div class="stats-panel">
+            <h2>📝 Movimientos</h2>
             <div class="move-history" id="moveHistory">
                 <p style="color: #888; text-align: center;">Los movimientos aparecerán aquí...</p>
             </div>
 
+            <h2>🎯 Mejor Movimiento</h2>
+            <div class="eval-item" id="bestMoveInfo">
+                <strong>Analizando...</strong>
+            </div>
+
+            <h2>📈 Estadísticas Globales</h2>
+            <div class="stats-grid">
+                <div class="stats-box">
+                    <strong>Partidas</strong>
+                    <span id="totalGames">0</span>
+                </div>
+                <div class="stats-box">
+                    <strong>ELO Máx</strong>
+                    <span id="maxElo">1600</span>
+                </div>
+                <div class="stats-box">
+                    <strong>Victoria %</strong>
+                    <span id="winRate">0%</span>
+                </div>
+                <div class="stats-box">
+                    <strong>ELO Promedio</strong>
+                    <span id="avgElo">1600</span>
+                </div>
+            </div>
+
             <div class="button-group">
                 <button onclick="undoMove()" class="secondary">↶ Deshacer</button>
-                <button onclick="toggleAnalysisMode()" class="secondary" id="analysisToggle">🔍 Análisis</button>
+                <button onclick="saveSessions()" class="secondary">💾 Guardar</button>
             </div>
+
+            <button onclick="clearAllData()" class="secondary" style="margin-top: 8px; background: #8B0000;">🗑️ Borrar Todo</button>
         </div>
     </div>
 
     <script>
-        // Variables globales
+        // ==================== VARIABLES GLOBALES ====================
         const game = new Chess();
         let stockfish = null;
         let selectedSquare = null;
         let highlights = [];
         let playerElo = 1600;
         let moveCount = 0;
-        let analysisMode = false;
-        let lastEvaluation = null;
+        let statsData = {
+            totalGames: 0,
+            totalElo: 0,
+            maxElo: 1600,
+            wins: 0,
+            currentMoves: []
+        };
         let moveHistory = [];
+        let bestMoveAnalysis = null;
+        let currentDepth = 10;
+        let analysisInProgress = false;
 
-        // Dificultades Stockfish
-        const difficultyMap = {
-            '1': { depth: 4, name: 'Novato' },
-            '2': { depth: 6, name: 'Intermedio' },
-            '3': { depth: 10, name: 'Avanzado' },
-            '4': { depth: 15, name: 'Experto' },
-            '5': { depth: 20, name: 'Gran Maestro' }
+        // Base de datos de aperturas (ECO)
+        const openings = {
+            'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR': 'Posición Inicial',
+            'rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR': 'Peón de Rey (1.e4)',
+            'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR': 'Posición Inicial',
         };
 
-        // Inicializar
-        document.getElementById('difficulty').disabled = true;
-        document.getElementById('playerColor').disabled = true;
+        // Dificultades
+        const difficultyMap = {
+            '1': { depth: 6, name: 'Novato' },
+            '2': { depth: 10, name: 'Intermedio' },
+            '3': { depth: 14, name: 'Avanzado' },
+            '4': { depth: 18, name: 'Experto' },
+            '5': { depth: 24, name: 'Gran Maestro' }
+        };
+
+        // ==================== INICIALIZACIÓN ====================
+        async function initStockfish() {
+            try {
+                stockfish = await Stockfish();
+                console.log('✅ Stockfish inicializado');
+                loadSessions();
+                updateUI();
+            } catch (error) {
+                console.error('❌ Error al cargar Stockfish:', error);
+                document.body.innerHTML += '<div class="loading">Error al cargar Stockfish. Recarga la página.</div>';
+            }
+        }
 
         document.getElementById('gameMode').addEventListener('change', (e) => {
             document.getElementById('difficulty').disabled = e.target.value === 'freeplay';
@@ -378,7 +504,7 @@
             resetGame();
         });
 
-        // Renderizar tablero
+        // ==================== TABLERO ====================
         function renderBoard() {
             const board = document.getElementById('board');
             board.innerHTML = '';
@@ -410,9 +536,8 @@
             }
         }
 
-        // Manejo de clicks en el tablero
         function handleSquareClick(square) {
-            if (game.game_over()) return;
+            if (game.game_over() || analysisInProgress) return;
             
             const piece = game.get(square);
             
@@ -433,10 +558,11 @@
                     highlights = [];
                     evaluateMove(move);
                     updateUI();
+                    analyzePosition();
                     
                     const mode = document.getElementById('gameMode').value;
                     if (mode === 'stockfish' && !game.game_over()) {
-                        setTimeout(makeStockfishMove, 500);
+                        setTimeout(makeStockfishMove, 800);
                     }
                 } else {
                     selectedSquare = null;
@@ -450,72 +576,207 @@
             renderBoard();
         }
 
-        // Evaluar movimiento del jugador
-        function evaluateMove(move) {
-            const quality = analyzeMove(move);
-            const eloChange = quality.eloChange;
+        // ==================== EVALUACIÓN ====================
+        async function evaluateMove(move) {
+            const fen = game.fen();
+            const beforeFen = game.history({ verbose: true })[game.history().length - 2]?.fen || game.fen();
+            
+            const evaluation = await evaluatePosition(beforeFen);
+            const newEvaluation = await evaluatePosition(fen);
+            
+            let quality = 'bueno';
+            let eloChange = 0;
+            let evaluation_loss = Math.abs(evaluation - newEvaluation);
+
+            if (evaluation_loss < 0.1) {
+                quality = 'bueno';
+                eloChange = 10;
+            } else if (evaluation_loss < 0.3) {
+                quality = 'inaccuracy';
+                eloChange = -5;
+            } else if (evaluation_loss < 0.8) {
+                quality = 'mistake';
+                eloChange = -15;
+            } else {
+                quality = 'blunder';
+                eloChange = -30;
+            }
+
             playerElo += eloChange;
             
             moveHistory.push({
                 move: move.san,
-                quality: quality.type,
-                centipawns: quality.centipawns
+                quality: quality,
+                evaluation: newEvaluation
             });
             
             updateMoveHistory();
         }
 
-        // Analizar calidad de movimiento
-        function analyzeMove(move) {
-            // Simulación de análisis (en una versión real usarías Stockfish)
-            const random = Math.random();
-            
-            if (random < 0.1) {
-                return { type: 'brillante', eloChange: 20, centipawns: 0 };
-            } else if (random < 0.25) {
-                return { type: 'excelente', eloChange: 15, centipawns: 0 };
-            } else if (random < 0.5) {
-                return { type: 'bueno', eloChange: 5, centipawns: 0 };
-            } else if (random < 0.75) {
-                return { type: 'imprecision', eloChange: -5, centipawns: -10 };
-            } else if (random < 0.9) {
-                return { type: 'error', eloChange: -15, centipawns: -30 };
-            } else {
-                return { type: 'blunder', eloChange: -30, centipawns: -50 };
-            }
+        async function evaluatePosition(fen) {
+            return new Promise((resolve) => {
+                if (!stockfish) {
+                    resolve(0);
+                    return;
+                }
+
+                const onMessage = (e) => {
+                    const line = e.data;
+                    if (line.startsWith('info depth')) {
+                        const match = line.match(/cp (-?\d+)/);
+                        if (match) {
+                            const cp = parseInt(match[1]) / 100;
+                            stockfish.removeEventListener('message', onMessage);
+                            resolve(cp);
+                        }
+                    }
+                };
+
+                stockfish.addEventListener('message', onMessage);
+                stockfish.postMessage('setoption name MultiPV value 1');
+                stockfish.postMessage(`position fen ${fen}`);
+                stockfish.postMessage('go depth ' + currentDepth);
+            });
         }
 
-        // Movimiento de Stockfish
-        function makeStockfishMove() {
+        async function analyzePosition() {
+            if (!stockfish || analysisInProgress) return;
+            analysisInProgress = true;
+
             const moves = game.moves({ verbose: true });
             if (moves.length === 0) return;
+
+            const allEvaluations = [];
+
+            for (let move of moves.slice(0, 3)) {
+                const gameCopy = new Chess(game.fen());
+                gameCopy.move(move);
+                const evaluation = await evaluatePosition(gameCopy.fen());
+                allEvaluations.push({ move: move.san, evaluation });
+            }
+
+            allEvaluations.sort((a, b) => Math.abs(b.evaluation) - Math.abs(a.evaluation));
             
-            const randomMove = moves[Math.floor(Math.random() * moves.length)];
-            game.move(randomMove);
-            updateUI();
+            if (allEvaluations.length > 0) {
+                document.getElementById('bestMoveInfo').innerHTML = `
+                    <strong>Mejor movimiento:</strong> ${allEvaluations[0].move}
+                    <div style="margin-top: 5px; font-size: 0.8em;">
+                        Evaluación: ${allEvaluations[0].evaluation.toFixed(2)}
+                    </div>
+                `;
+            }
+
+            analysisInProgress = false;
         }
 
-        // Pedir pista
-        function requestHint() {
+        // ==================== STOCKFISH ====================
+        async function makeStockfishMove() {
+            if (!stockfish || !game.moves().length) return;
+
+            analysisInProgress = true;
+            
+            const depth = difficultyMap[document.getElementById('difficulty').value].depth;
+            
+            let bestMove = null;
+
+            const onMessage = (e) => {
+                const line = e.data;
+                if (line.startsWith('bestmove')) {
+                    const match = line.match(/bestmove (\S+)/);
+                    if (match) {
+                        bestMove = match[1];
+                        stockfish.removeEventListener('message', onMessage);
+                        
+                        if (bestMove && bestMove !== '(none)') {
+                            const moves = game.moves({ verbose: true });
+                            const moveObj = moves.find(m => m.from + m.to === bestMove || m.san === bestMove);
+                            
+                            if (moveObj) {
+                                game.move(moveObj);
+                                updateUI();
+                            }
+                        }
+                        analysisInProgress = false;
+                    }
+                }
+            };
+
+            stockfish.addEventListener('message', onMessage);
+            stockfish.postMessage(`position fen ${game.fen()}`);
+            stockfish.postMessage(`go depth ${depth}`);
+        }
+
+        // ==================== PISTAS ====================
+        async function requestHint() {
+            if (analysisInProgress) {
+                alert('Análisis en progreso...');
+                return;
+            }
+
             const moves = game.moves({ verbose: true });
-            if (moves.length > 0) {
-                const bestMove = moves[0];
-                alert(`💡 Pista: Considera mover ${bestMove.san}`);
+            if (moves.length === 0) {
+                alert('No hay movimientos disponibles');
+                return;
+            }
+
+            let bestMove = null;
+
+            const onMessage = (e) => {
+                const line = e.data;
+                if (line.startsWith('bestmove')) {
+                    const match = line.match(/bestmove (\S+)/);
+                    if (match) {
+                        bestMove = match[1];
+                        stockfish.removeEventListener('message', onMessage);
+                        
+                        const moves = game.moves({ verbose: true });
+                        const moveObj = moves.find(m => m.from + m.to === bestMove || m.san === bestMove);
+                        
+                        if (moveObj) {
+                            alert(`💡 Pista: Considera jugar ${moveObj.san}`);
+                        }
+                    }
+                }
+            };
+
+            stockfish.addEventListener('message', onMessage);
+            stockfish.postMessage(`position fen ${game.fen()}`);
+            stockfish.postMessage(`go depth ${currentDepth}`);
+        }
+
+        // ==================== UI ====================
+        function updateUI() {
+            renderBoard();
+            document.getElementById('eloDisplay').textContent = playerElo;
+            document.getElementById('moveCount').textContent = moveCount;
+            updateEvaluation();
+            updateGamePhase();
+            updateStatistics();
+            
+            if (game.game_over()) {
+                setTimeout(() => {
+                    statsData.totalGames++;
+                    statsData.totalElo += playerElo;
+                    statsData.maxElo = Math.max(statsData.maxElo, playerElo);
+                    saveSessions();
+                    alert(`¡Partida terminada!\n\nTu ELO final: ${playerElo}\nModo: ${document.getElementById('gameMode').value}`);
+                }, 300);
             }
         }
 
-        // Deshacer movimiento
-        function undoMove() {
-            if (game.moves().length > 0) {
-                game.undo();
-                moveHistory.pop();
-                updateMoveHistory();
-                renderBoard();
-                updateUI();
-            }
+        async function updateEvaluation() {
+            const evaluation = await evaluatePosition(game.fen());
+            const turn = game.turn() === 'w' ? 1 : -1;
+            const adjustedEval = evaluation * turn;
+            
+            const whiteAdvantage = 50 + Math.min(Math.max(adjustedEval * 3, -50), 50);
+            
+            document.getElementById('evalScore').textContent = Math.abs(adjustedEval).toFixed(2);
+            const bar = document.getElementById('evalBar');
+            bar.style.width = whiteAdvantage + '%';
+            bar.textContent = Math.round(whiteAdvantage) + '%';
         }
 
-        // Actualizar historial de movimientos
         function updateMoveHistory() {
             const hist = document.getElementById('moveHistory');
             hist.innerHTML = '';
@@ -523,39 +784,95 @@
             moveHistory.forEach((item, idx) => {
                 const div = document.createElement('div');
                 div.className = 'move-item';
+                
+                const moveNum = Math.floor(idx / 2) + 1;
+                const color = idx % 2 === 0 ? 'Blancas' : 'Negras';
+                
                 div.innerHTML = `
-                    <strong>${Math.floor(idx / 2) + 1}.</strong> ${item.move}
+                    <strong>${moveNum}.</strong> <strong>${item.move}</strong>
                     <span class="move-quality quality-${item.quality}">${item.quality.toUpperCase()}</span>
                 `;
                 hist.appendChild(div);
             });
         }
 
-        // Actualizar UI general
-        function updateUI() {
-            renderBoard();
-            document.getElementById('eloDisplay').textContent = playerElo;
-            updateEvaluation();
-            
-            if (game.game_over()) {
-                setTimeout(() => {
-                    alert(`¡Partida terminada!\n\nTu ELO final: ${playerElo}`);
-                }, 300);
+        function updateGamePhase() {
+            const moveNum = moveCount;
+            let phase = 'Apertura';
+            let advice = 'Desarrolla tus piezas y controla el centro';
+
+            if (moveNum > 6 && moveNum < 20) {
+                phase = 'Medio Juego';
+                advice = 'Busca ataques y mejora tu posición';
+            } else if (moveNum >= 20) {
+                phase = 'Final';
+                advice = 'Activa tu rey, busca zugzwang';
+            }
+
+            document.getElementById('gamePhase').textContent = phase;
+            document.getElementById('phaseAdvice').textContent = advice;
+        }
+
+        function updateStatistics() {
+            const goodMoves = moveHistory.filter(m => m.quality === 'bueno' || m.quality === 'excelente').length;
+            const mistakes = moveHistory.filter(m => m.quality === 'mistake' || m.quality === 'blunder').length;
+            const accuracy = moveHistory.length > 0 ? Math.round((goodMoves / moveHistory.length) * 100) : 0;
+
+            document.getElementById('accuracy').textContent = accuracy + '%';
+            document.getElementById('bestMoves').textContent = goodMoves;
+            document.getElementById('mistakes').textContent = mistakes;
+            document.getElementById('totalGames').textContent = statsData.totalGames;
+            document.getElementById('maxElo').textContent = statsData.maxElo;
+            document.getElementById('avgElo').textContent = statsData.totalGames > 0 ? Math.round(statsData.totalElo / statsData.totalGames) : 1600;
+            document.getElementById('winRate').textContent = statsData.totalGames > 0 ? Math.round((statsData.wins / statsData.totalGames) * 100) : 0 + '%';
+        }
+
+        // ==================== ALMACENAMIENTO ====================
+        function saveSessions() {
+            const sessionData = {
+                timestamp: new Date().toISOString(),
+                elo: playerElo,
+                moves: moveHistory,
+                mode: document.getElementById('gameMode').value
+            };
+
+            try {
+                let sessions = window.storage ? JSON.parse(localStorage.getItem('chess_sessions') || '[]') : [];
+                sessions.push(sessionData);
+                if (window.storage) localStorage.setItem('chess_sessions', JSON.stringify(sessions));
+                alert('✅ Partida guardada');
+            } catch (error) {
+                console.log('Guardado local no disponible, datos en memoria');
             }
         }
 
-        // Actualizar evaluación
-        function updateEvaluation() {
-            const evalScore = Math.random() * 4 - 2; // -2 a +2
-            const whiteAdvantage = 50 + (evalScore / 4) * 50;
-            
-            document.getElementById('evalScore').textContent = evalScore.toFixed(1);
-            const bar = document.getElementById('evalBar');
-            bar.style.width = whiteAdvantage + '%';
-            bar.textContent = Math.round(whiteAdvantage) + '%';
+        function loadSessions() {
+            try {
+                const sessions = window.storage ? JSON.parse(localStorage.getItem('chess_sessions') || '[]') : [];
+                sessions.forEach(session => {
+                    statsData.totalGames++;
+                    statsData.totalElo += session.elo;
+                    statsData.maxElo = Math.max(statsData.maxElo, session.elo);
+                });
+            } catch (error) {
+                console.log('No se pudieron cargar sesiones previas');
+            }
         }
 
-        // Nueva partida
+        function clearAllData() {
+            if (confirm('⚠️ ¿Borrar TODOS los datos y estadísticas?')) {
+                try {
+                    if (window.storage) localStorage.removeItem('chess_sessions');
+                    statsData = { totalGames: 0, totalElo: 0, maxElo: 1600, wins: 0 };
+                    resetGame();
+                    alert('✅ Datos borrados');
+                } catch (error) {
+                    console.log('Error al borrar datos');
+                }
+            }
+        }
+
+        // ==================== RESET ====================
         function resetGame() {
             game.reset();
             selectedSquare = null;
@@ -563,20 +880,21 @@
             moveHistory = [];
             moveCount = 0;
             playerElo = 1600;
+            analysisInProgress = false;
             
+            currentDepth = difficultyMap[document.getElementById('difficulty').value].depth || 10;
             updateUI();
         }
 
-        // Toggle análisis
-        function toggleAnalysisMode() {
-            analysisMode = !analysisMode;
-            document.getElementById('analysisToggle').textContent = 
-                analysisMode ? '🔍 Análisis ON' : '🔍 Análisis OFF';
+        function undoMove() {
+            if (moveHistory.length > 0) {
+                game.undo();
+                moveHistory.pop();
+                moveCount--;
+                playerElo += 5; // Bonus al deshacer
+                updateUI();
+            }
         }
 
-        // Iniciar
-        renderBoard();
-        updateUI();
-    </script>
-</body>
-</html>
+        // ==================== INICIO ====================
+        initStockfish();
