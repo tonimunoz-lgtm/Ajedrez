@@ -6,8 +6,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">    
     <title>Entrenador de Ajedrez Profesional</title>    
         
-    <!-- Tus estilos CSS -->    
+    <!-- Tus estilos CSS (se mantiene igual) -->    
     <style>    
+        /* ... (tus estilos CSS completos, no los vuelvo a pegar para no alargar) ... */  
         * {    
             margin: 0;    
             padding: 0;    
@@ -617,10 +618,6 @@
                         <strong id="moveCount">0</strong>    
                         <span>Movs</span>    
                     </div>    
-                    <!-- Las siguientes métricas (precisión, buenos, errores) no están implementadas en game.js,    
-                         o su implementación es muy básica, por lo que las dejo con valores fijos    
-                         o los que hayas configurado en game.js si lo modificaste.    
-                         Si quieres que se actualicen, necesitarías lógica más robusta en game.js. -->    
                     <div class="stat-quick-box">    
                         <strong id="accuracy">0%</strong>    
                         <span>Precisión</span>    
@@ -746,7 +743,7 @@
     
     <!-- CARGA DE SCRIPTS - ¡ORDEN IMPORTA! -->      
     <!-- 1. Bibliotecas de terceros (Chess.js) -->      
-    <!-- 2. Archivo del motor Stockfish (stockfish.js) -->      
+    <!-- 2. Archivo del motor Stockfish (stockfish.js) - Ahora de un CDN que permita Workers de origen cruzado -->      
     <!-- 3. Tu lógica de IA que usa Stockfish (stockfish-ai.js) -->      
     <!-- 4. Tu lógica principal del juego (game.js) -->      
     <!-- 5. Tu script de inicialización DOM -->      
@@ -754,8 +751,8 @@
     <!-- 1. Carga de Chess.js desde CDN -->    
     <script src="https://cdnjs.cloudflare.com/ajax/libs/chess.js/0.10.3/chess.min.js"></script>      
         
-    <!-- 2. Carga de Stockfish desde una CDN (versión más reciente y confiable) -->    
-    <script src="https://cdn.jsdelivr.net/npm/stockfish@latest/src/stockfish.js"></script>  
+    <!-- 2. Carga de Stockfish desde un CDN que SÍ permite Workers de origen cruzado -->    
+    <script src="https://unpkg.com/stockfish.js/src/stockfish.js"></script> <!-- Ruta de unpkg para Stockfish.js -->  
         
     <!-- 3. Tu lógica de IA que usa Stockfish -->    
     <script src="js/stockfish-ai.js"></script>        
@@ -766,10 +763,9 @@
     <!-- 5. Tu script de inicialización DOM (que está dentro de tu HTML) -->    
     <script>        
         document.addEventListener('DOMContentLoaded', async () => {      
-            // Asegúrate de que initializeStockfishEngine y renderBoard se ejecuten antes que updateUI      
-            await initializeStockfishEngine(); // Inicializa Stockfish (de stockfish-ai.js)      
-            renderBoard();                     // Renderiza el tablero (de game.js)      
-            await updateUI();                  // Actualiza la UI, que ahora incluye la primera evaluación de Stockfish (de game.js, llama a stockfish-ai.js)      
+            await initializeStockfishEngine();      
+            renderBoard();                       
+            await updateUI();                    
         });          
     </script>          
 </body>          
