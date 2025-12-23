@@ -46,10 +46,11 @@ function stockfishMessageListener(event) {
  */    
 async function initializeStockfishEngine() {    
     try {    
-        console.log('⏳ Intentando inicializar Stockfish como Web Worker desde unpkg.com...');  
+        console.log('⏳ Intentando inicializar Stockfish como Web Worker a través del proxy local...');  
           
-        // Crear un nuevo Web Worker usando la URL del script de Stockfish desde un CDN que permite CORS para Workers  
-        engine = new Worker('https://unpkg.com/stockfish.js/src/stockfish.js'); // <--- CAMBIO CLAVE AQUÍ  
+        // Crear un nuevo Web Worker apuntando a nuestro script proxy local  
+        // Asegúrate de que la ruta sea correcta para tu proyecto.  
+        engine = new Worker('js/stockfish-proxy.js'); // <--- CAMBIO CLAVE AQUÍ  
           
         engine.onmessage = stockfishMessageListener;    
     
