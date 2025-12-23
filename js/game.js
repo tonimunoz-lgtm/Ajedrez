@@ -345,7 +345,8 @@ function giveCoachFeedback(type, message = null) {
  */  
 async function updateUI() {  
     renderBoard(); // Redibujar el tablero  
-    await window.updateEvaluationDisplay(); // Actualizar el panel de Stockfish y la barra de evaluación (desde stockfish-ai.js)  
+    // Llamada a la función global de stockfish-ai.js para actualizar la evaluación en el panel lateral  
+    await window.updateEvaluationDisplay();   
     updateLastMoveInfo(); // Actualizar información del último movimiento  
     updateMoveHistory(); // Actualizar historial de movimientos  
     updateStats(); // Actualizar estadísticas rápidas  
@@ -543,7 +544,8 @@ async function resetGame() {
     const lastMoveInfoEl = document.getElementById('lastMoveInfo');  
     if (lastMoveInfoEl) lastMoveInfoEl.style.display = 'none';  
   
-    await window.updateEvaluationDisplay(); // Actualizar la evaluación para la posición inicial  
+    // Actualizar la evaluación para la posición inicial (llamada a stockfish-ai.js)  
+    await window.updateEvaluationDisplay();   
     updateUI(); // Actualizar toda la interfaz  
 }  
   
@@ -559,7 +561,8 @@ async function undoMove() {
     }  
     moveCount = game.history().length; // Sincronizar moveCount con el historial real  
   
-    await window.updateEvaluationDisplay(); // Re-evaluar la posición después de deshacer  
+    // Re-evaluar la posición después de deshacer (llamada a stockfish-ai.js)  
+    await window.updateEvaluationDisplay();   
     updateUI(); // Actualizar toda la interfaz  
 }  
   
@@ -603,8 +606,15 @@ async function requestHint() {
         selectedSquare = from; // Seleccionar el cuadrado de origen de la pista  
         highlights = [to]; // Resaltar el cuadrado de destino de la pista  
         renderBoard(); // Redibujar el tablero para mostrar la pista visualmente  
+          
+        // Convertir la PV de UCI a SAN para la pista  
+        let pvHintSan = '';  
+        if (result.pv && result.pv.length > 0) {  
+            pvHintSan = convertPvUciToSan(result.pv, game.fen());  
+        }  
+  
         // Mostrar la pista con el movimiento y la Variante Principal  
-        giveCoachFeedback('hint', `Considera mover ${from}-${to}. PV: ${result.pv.join(' ')}`);  
+        giveCoachFeedback('hint', `Considera mover ${from}-${to}. PV: ${pvHintSan || 'N/A'}`);  
     } else {  
         giveCoachFeedback('hint', "No pude encontrar una buena pista. ¿Hay un error?");  
     }  
@@ -703,12 +713,13 @@ async function performAnalysis() {
     document.getElementById('bestMoveAnalysis').innerHTML = bestMoveSan;  
     document.getElementById('analysisDepth').innerHTML = result.depth + ' movimientos';  
   
-    // MOSTRAR LA VARIANTE PRINCIPAL (PV)  
+    // MOSTRAR LA VARIANTE PRINCIPAL (PV) CONVERTIENDO A SAN  
     const principalVariationEl = document.getElementById('principalVariation');  
     if (principalVariationEl) {  
         if (result.pv && result.pv.length > 0) {  
-            // Unir los movimientos UCI de la PV con espacios  
-            principalVariationEl.innerHTML = result.pv.join(' ');  
+            // Convertir la PV de UCI a SAN usando la nueva función  
+            const pvSan = convertPvUciToSan(result.pv, game.fen());  
+            principalVariationEl.innerHTML = pvSan;  
         } else {  
             principalVariationEl.innerHTML = 'No se encontró variante principal.';  
         }  
@@ -745,6 +756,50 @@ async function performAnalysis() {
 }  
   
   
+// ===================== CONVERTIDOR UCI A SAN PARA PV =====================  
+  
+/**  
+ * Convierte una secuencia de movimientos en notación UCI (Universal Chess Interface)  
+ * a notación SAN (Standard Algebraic Notation).  
+ *  
+ * @param {string[]} pvUciArray - Un array de strings de movimientos en formato UCI (ej. ['e2e4', 'e7e5', 'g1f3']).  
+ * @param {string} initialFen - El FEN de la posición desde donde comienza la PV.  
+ * @returns {string} La secuencia de movimientos convertida a SAN (ej. "e4 e5 Nf3").  
+ */  
+function convertPvUciToSan(pvUciArray, initialFen) {  
+    // Creamos una instancia temporal de Chess.js para simular la PV  
+    // sin afectar el estado actual del juego principal.  
+    const tempGame = new Chess(initialFen);  
+    const pvSanArray = [];  
+  
+    for (const uciMove of pvUciArray) {  
+        // Parsear el movimiento UCI en sus componentes  
+        const from = uciMove.substring(0, 2);  
+        const to = uciMove.substring(2, 4);  
+        // La promoción es el quinto carácter si existe (ej. 'e7e8q'), se pasa a minúscula para chess.js  
+        const promotion = uciMove.length > 4 ? uciMove[4].toLowerCase() : undefined;  
+  
+        try {  
+            // Intentar hacer el movimiento en la instancia temporal del juego  
+            // Chess.js devolverá el objeto de movimiento con la propiedad 'san'  
+            const move = tempGame.move({ from, to, promotion });  
+            if (move) {  
+                pvSanArray.push(move.san);  
+            } else {  
+                // Si por alguna razón el movimiento UCI no es válido en el contexto de tempGame,  
+                // lo añadimos tal cual y emitimos una advertencia. Esto no debería pasar con PVs válidas de Stockfish.  
+                console.warn(`Movimiento UCI inválido en PV: '${uciMove}' en FEN: '${tempGame.fen()}'`);  
+                pvSanArray.push(uciMove); // Fallback a UCI si no se puede convertir a SAN  
+            }  
+        } catch (error) {  
+            console.error(`Error al procesar movimiento UCI '${uciMove}' en FEN '${tempGame.fen()}':`, error);  
+            pvSanArray.push(uciMove); // Añadir el UCI si hay un error en el procesamiento  
+        }  
+    }  
+    return pvSanArray.join(' '); // Unir todos los movimientos SAN con espacios  
+}  
+  
+  
 // ===================== EXPORTAR GLOBALES =====================  
 // Asignamos variables y funciones al objeto `window` para que sean accesibles  
 // desde otros scripts o el HTML directamente, ya que no estamos usando módulos ES6.  
@@ -758,3 +813,4 @@ window.flipBoard = flipBoard;
 window.requestHint = requestHint;  
 window.analysisMode = analysisMode;  
 window.closeAnalysis = closeAnalysis;  
+window.convertPvUciToSan = convertPvUciToSan; // La nueva función de conversión  
