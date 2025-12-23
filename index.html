@@ -3,102 +3,28 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Entrenador de Ajedrez con Stockfish</title>
+  <title>Tablero de Ajedrez</title>
   <link rel="stylesheet" href="https://unpkg.com/chessboardjs@1.0.0/dist/chessboard-1.0.0.min.css">
   <style>
-    body { font-family: Arial, sans-serif; display: flex; flex-direction: column; align-items: center; margin-top: 20px; }
-    #board { width: 400px; margin-bottom: 20px; }
-    #info { width: 400px; }
-    #advice { margin-top: 10px; background: #f0f0f0; padding: 10px; border-radius: 5px; }
+    body { display: flex; flex-direction: column; align-items: center; margin-top: 50px; font-family: Arial; }
+    #board { width: 400px; }
   </style>
 </head>
 <body>
 
-<h1>Entrenador de Ajedrez</h1>
-
+<h1>Tablero de Ajedrez</h1>
 <div id="board"></div>
-<div id="info">
-  <p>Movimiento recomendado por Stockfish: <span id="bestmove">-</span></p>
-  <p id="advice">Consejo: -</p>
-</div>
 
-<!-- jQuery necesario para Chessboard.js -->
 <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/chess.js/1.0.0/chess.min.js"></script>
 <script src="https://unpkg.com/chessboardjs@1.0.0/dist/chessboard-1.0.0.min.js"></script>
 
 <script>
-  const game = new Chess();
-  let board = null;
-
-  // Inicializamos el tablero
-  board = Chessboard('board', {
+  // Tablero simple, sin lógica de juego
+  const board = Chessboard('board', {
     draggable: true,
     position: 'start',
-    onDrop: handleMove,
     pieceTheme: 'https://chessboardjs.com/img/chesspieces/wikipedia/{piece}.png'
   });
-
-  // Stockfish en el navegador
-  const stockfish = new Worker('https://cdn.jsdelivr.net/gh/niklasf/stockfish.js/stockfish.js');
-
-  stockfish.onmessage = function(event) {
-    const line = event.data;
-    if (line.startsWith('bestmove')) {
-      const move = line.split(' ')[1];
-      document.getElementById('bestmove').innerText = move;
-
-      // Si es turno de Stockfish, hacer el movimiento
-      if (game.turn() === 'b') {
-        game.move({ from: move.substring(0,2), to: move.substring(2,4), promotion: 'q' });
-        board.position(game.fen());
-        document.getElementById('advice').innerText = 'Stockfish jugó ' + move;
-      }
-    }
-  };
-
-  function analyzePosition() {
-    stockfish.postMessage('position fen ' + game.fen());
-    stockfish.postMessage('go depth 15');
-  }
-
-  function handleMove(source, target) {
-    const move = game.move({ from: source, to: target, promotion: 'q' });
-    if (move === null) return 'snapback';
-
-    board.position(game.fen());
-    analyzePosition();
-
-    setTimeout(() => {
-      // Recomendación de Stockfish para tu movimiento
-      stockfish.postMessage('position fen ' + game.fen());
-      stockfish.postMessage('go depth 15');
-
-      stockfish.onmessage = function(event) {
-        const line = event.data;
-        if (line.startsWith('bestmove')) {
-          const bestMove = line.split(' ')[1];
-          document.getElementById('bestmove').innerText = bestMove;
-
-          // Consejo: comparar tu movimiento con el mejor
-          if (move.from + move.to !== bestMove) {
-            document.getElementById('advice').innerText = 'Consejo: Tal vez este movimiento no es óptimo, Stockfish recomienda ' + bestMove;
-          } else {
-            document.getElementById('advice').innerText = 'Buen movimiento!';
-          }
-
-          // Si es turno de Stockfish, hacer su jugada automáticamente
-          if (game.turn() === 'b') {
-            game.move({ from: bestMove.substring(0,2), to: bestMove.substring(2,4), promotion: 'q' });
-            board.position(game.fen());
-            document.getElementById('advice').innerText += ' | Stockfish jugó ' + bestMove;
-          }
-        }
-      }
-    }, 500);
-
-    return true;
-  }
 </script>
 
 </body>
