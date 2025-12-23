@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Prueba Stockfish Local</title>
+</head>
+<body>
+  <h1>Prueba Stockfish Local</h1>
+  <div id="coachMessage">Cargando Stockfish...</div>
+  <button id="runMove">Hacer movimiento IA</button>
+
+  <script src="js/stockfish-ai.js"></script>
+  <script src="js/game.js"></script>
+  <script>
+    // Inicializamos Stockfish
+    initStockfish();
+
+    // Evento de prueba para que la IA haga un movimiento
+    document.getElementById('runMove').addEventListener('click', async () => {
+      if (!engineReady) {
+        alert('Stockfish aún no está listo');
+        return;
+      }
+      // Suponemos que game ya está inicializado desde game.js
+      const move = await getBestMoveStockfish(10);
+      if (move) alert('Movimiento IA: ' + move.san);
+    });
+  </script>
+</body>
+</html>
