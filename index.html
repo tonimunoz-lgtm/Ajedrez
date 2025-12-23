@@ -148,12 +148,12 @@
         }
 
         let useLocalAnalysis = true;
+        let searchTimeout = false;
 
         async function initEngine() {
-            document.getElementById('coachMessage').innerHTML = '<strong>✅ Motor Listo</strong> Análisis Minimax local activado.';
+            document.getElementById('coachMessage').innerHTML = '<strong>✅ Motor Listo</strong> Análisis optimizado activado.';
         }
 
-        // ANÁLISIS LOCAL REAL CON MINIMAX + ALPHA-BETA
         function evaluatePosition() {
             const board = game.board();
             let score = 0;
@@ -167,45 +167,49 @@
                 }
             }
             
-            // Bonus por movilidad
             const moves = game.moves().length;
-            score += moves * 0.05;
+            score += moves * 0.02;
             
-            // Penalty si el rey está en jaque
             if(game.in_check()) score += game.turn() === 'w' ? -0.5 : 0.5;
             
             return score;
         }
 
-        function minimax(depth, isMax, alpha = -Infinity, beta = Infinity) {
+        function minimax(depth, isMax, alpha = -Infinity, beta = Infinity, startTime = Date.now()) {
+            // TIMEOUT: Si pasa 1 segundo, parar búsqueda
+            if(Date.now() - startTime > 1000) {
+                return evaluatePosition();
+            }
+
             if(depth === 0 || game.game_over()) {
                 return evaluatePosition();
             }
 
-            const moves = game.moves().slice(0, Math.min(30, game.moves().length));
+            const moves = game.moves().slice(0, Math.min(20, game.moves().length));
+            if(moves.length === 0) return evaluatePosition();
 
             if(isMax) {
                 let maxEval = -Infinity;
                 for(let move of moves) {
                     game.move(move);
-                    const eval_ = minimax(depth - 1, false, alpha, beta);
+                    const eval_ = minimax(depth - 1, false, alpha, beta, startTime);
                     game.undo();
                     
                     maxEval = Math.max(maxEval, eval_);
                     alpha = Math.max(alpha, eval_);
-                    if(beta <= alpha) break; // Poda alfa-beta
+                    if(beta <= alpha) break;
                 }
                 return maxEval;
             } else {
                 let minEval = Infinity;
                 for(let move of moves) {
                     game.move(move);
-                    const eval_ = minimax(depth - 1, true, alpha, beta);
+                    const eval_ = minimax(depth - 1, true, alpha, beta, startTime);
                     game.undo();
                     
                     minEval = Math.min(minEval, eval_);
                     beta = Math.min(beta, eval_);
-                    if(beta <= alpha) break; // Poda alfa-beta
+                    if(beta <= alpha) break;
                 }
                 return minEval;
             }
@@ -217,10 +221,14 @@
 
             let bestMove = moves[0];
             let bestEval = -Infinity;
+            const startTime = Date.now();
 
-            for(let move of moves.slice(0, Math.min(35, moves.length))) {
+            for(let move of moves.slice(0, Math.min(20, moves.length))) {
+                // Timeout global
+                if(Date.now() - startTime > 1200) break;
+
                 game.move(move);
-                const eval_ = minimax(depth - 1, false);
+                const eval_ = minimax(depth - 1, false, -Infinity, Infinity, startTime);
                 game.undo();
 
                 if(eval_ > bestEval) {
@@ -234,8 +242,7 @@
         function evaluatePos(fen, depth) {
             return new Promise((resolve) => {
                 try {
-                    // Análisis Minimax + Alpha-Beta
-                    const bestMove = getBestMove(depth);
+                    const bestMove = getBestMove(Math.min(depth, 3));
                     const score = evaluatePosition();
                     
                     resolve({
