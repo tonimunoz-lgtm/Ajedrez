@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Entrenador de Ajedrez Profesional</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/chess.js/0.10.3/chess.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/stockfish.js/10.0.2/stockfish.js"></script>
     <style>
         * {
             margin: 0;
@@ -145,6 +146,7 @@
             display: flex;
             flex-direction: column-reverse;
             border: 1px solid #444;
+            position: relative;
         }
 
         .eval-bar-fill {
@@ -276,6 +278,27 @@
             background: rgba(255, 0, 0, 0.05);
         }
 
+        .last-move-info {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            font-size: 0.85em;
+        }
+
+        .move-box {
+            background: rgba(0, 212, 255, 0.1);
+            padding: 10px;
+            border-radius: 6px;
+            text-align: center;
+            border: 1px solid rgba(0, 212, 255, 0.2);
+        }
+
+        .move-box strong {
+            color: #00d4ff;
+            display: block;
+            font-size: 1.1em;
+        }
+
         .stats-quick {
             display: grid;
             grid-template-columns: 1fr 1fr 1fr 1fr;
@@ -326,6 +349,171 @@
             margin: 0;
         }
 
+        h3 {
+            font-size: 0.95em;
+            color: #fff;
+            margin: 0;
+        }
+
+        .opening-info {
+            background: rgba(0, 212, 255, 0.05);
+            padding: 10px;
+            border-radius: 6px;
+            border-left: 3px solid #00d4ff;
+            font-size: 0.85em;
+        }
+
+        .analysis-modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.9);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .analysis-modal.active {
+            display: flex;
+        }
+
+        .analysis-content {
+            background: #1e1e2e;
+            border: 2px solid #00d4ff;
+            border-radius: 12px;
+            padding: 30px;
+            max-width: 900px;
+            max-height: 85vh;
+            overflow-y: auto;
+            width: 90%;
+        }
+
+        .analysis-close {
+            float: right;
+            cursor: pointer;
+            font-size: 32px;
+            color: #00d4ff;
+            line-height: 1;
+            margin-bottom: 15px;
+        }
+
+        .analysis-section {
+            margin-bottom: 20px;
+            padding: 15px;
+            background: rgba(0, 212, 255, 0.05);
+            border-radius: 8px;
+            border-left: 3px solid #00d4ff;
+        }
+
+        .analysis-section h3 {
+            margin-bottom: 10px;
+            color: #00d4ff;
+        }
+
+        .analysis-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            margin-top: 10px;
+        }
+
+        .analysis-box {
+            background: rgba(0, 212, 255, 0.1);
+            padding: 12px;
+            border-radius: 6px;
+            border: 1px solid rgba(0, 212, 255, 0.2);
+        }
+
+        .analysis-box strong {
+            color: #00ff00;
+            display: block;
+            font-size: 1.3em;
+        }
+
+        .loading {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid #00d4ff;
+            border-radius: 50%;
+            border-top-color: transparent;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        @media (max-width: 1400px) {
+            .chessboard {
+                width: 500px;
+                height: 500px;
+            }
+
+            .square {
+                font-size: 2.5em;
+            }
+
+            .eval-bar-vertical {
+                height: 500px;
+            }
+
+            .controls {
+                max-width: 600px;
+            }
+        }
+
+        @media (max-width: 1200px) {
+            .main-container {
+                flex-direction: column;
+                gap: 15px;
+                padding: 15px;
+            }
+
+            .board-and-eval {
+                justify-content: center;
+            }
+
+            .panels-container {
+                grid-template-columns: 1fr;
+                gap: 15px;
+                max-height: 400px;
+            }
+
+            .eval-bar-vertical {
+                display: none;
+            }
+        }
+
+        @media (max-width: 768px) {
+            .chessboard {
+                width: 100%;
+                max-width: 450px;
+                height: auto;
+                aspect-ratio: 1;
+            }
+
+            .square {
+                font-size: 2em;
+            }
+
+            .controls {
+                max-width: 100%;
+                grid-template-columns: 1fr 1fr;
+            }
+
+            .eval-bar-vertical {
+                display: none;
+            }
+
+            .stats-quick {
+                grid-template-columns: 1fr 1fr;
+            }
+        }
+
         ::-webkit-scrollbar {
             width: 8px;
         }
@@ -346,7 +534,7 @@
 </head>
 <body>
     <div class="header">
-        <h1>♟️ Entrenador de Ajedrez Profesional</h1>
+        <h1>♟️ Entrenador de Ajedrez - Stockfish Real</h1>
     </div>
 
     <div class="main-container">
@@ -374,13 +562,13 @@
                     </select>
                 </div>
                 <div class="control-group">
-                    <label>Nivel</label>
+                    <label>Nivel IA</label>
                     <select id="difficulty">
-                        <option value="1">Novato</option>
-                        <option value="2">Intermedio</option>
-                        <option value="3" selected>Avanzado</option>
-                        <option value="4">Experto</option>
-                        <option value="5">Maestro</option>
+                        <option value="1">Novato (400)</option>
+                        <option value="2">Intermedio (1200)</option>
+                        <option value="3" selected>Avanzado (1800)</option>
+                        <option value="4">Experto (2400)</option>
+                        <option value="5">Maestro (3000)</option>
                     </select>
                 </div>
                 <button onclick="resetGame()" class="full-width">🔄 Nueva</button>
@@ -393,8 +581,19 @@
                 <h2>🎯 Entrenador</h2>
                 
                 <div id="coachMessage" class="coach-message">
-                    <strong>¡Bienvenido!</strong>
-                    Realiza tu primer movimiento.
+                    <strong>⏳ Inicializando Stockfish...</strong>
+                    Por favor espera, cargando motor de ajedrez...
+                </div>
+
+                <div id="lastMoveInfo" class="last-move-info" style="display: none;">
+                    <div class="move-box">
+                        <strong>Tu movimiento:</strong>
+                        <span id="playerLastMove">-</span>
+                    </div>
+                    <div class="move-box">
+                        <strong>Evaluación:</strong>
+                        <span id="moveEval">-</span>
+                    </div>
                 </div>
 
                 <div class="stats-quick">
@@ -416,6 +615,10 @@
                     </div>
                 </div>
 
+                <div id="openingInfo" class="opening-info" style="display: none;">
+                    <strong>📖 Apertura:</strong> <span id="openingName">-</span>
+                </div>
+
                 <div style="margin-top: auto; display: flex; gap: 10px;">
                     <button onclick="undoMove()" class="secondary" style="flex: 1;">↶ Deshacer</button>
                     <button onclick="flipBoard()" class="secondary" style="flex: 1;">🔄 Girar</button>
@@ -427,12 +630,75 @@
                 <div class="move-history" id="moveHistory">
                     <p style="color: #888; text-align: center;">Movimientos aquí...</p>
                 </div>
+
+                <h2>📊 Estadísticas</h2>
+                <div class="stats-quick">
+                    <div class="stat-quick-box">
+                        <strong id="totalGames">0</strong>
+                        <span>Partidas</span>
+                    </div>
+                    <div class="stat-quick-box">
+                        <strong id="maxElo">1600</strong>
+                        <span>ELO Máx</span>
+                    </div>
+                    <div class="stat-quick-box">
+                        <strong id="currentElo">1600</strong>
+                        <span>ELO Actual</span>
+                    </div>
+                    <div class="stat-quick-box">
+                        <strong id="sessions">0</strong>
+                        <span>Sessions</span>
+                    </div>
+                </div>
+
+                <button onclick="analysisMode()" class="secondary" style="width: 100%; margin-top: 10px;">📊 Análisis</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="analysis-modal" id="analysisModal">
+        <div class="analysis-content">
+            <span class="analysis-close" onclick="closeAnalysis()">&times;</span>
+            <h2 style="margin-bottom: 20px;">📊 Análisis con Stockfish</h2>
+            
+            <div class="analysis-section">
+                <h3>🎲 Probabilidades</h3>
+                <div class="analysis-grid">
+                    <div class="analysis-box">
+                        <strong id="whiteWinProb">-</strong>
+                        <span>Blancas Ganan</span>
+                    </div>
+                    <div class="analysis-box">
+                        <strong id="drawProb">-</strong>
+                        <span>Tablas</span>
+                    </div>
+                    <div class="analysis-box">
+                        <strong id="blackWinProb">-</strong>
+                        <span>Negras Ganan</span>
+                    </div>
+                    <div class="analysis-box">
+                        <strong id="moveEvalAnal">-</strong>
+                        <span>Mejor Movimiento</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="analysis-section">
+                <h3>🔍 Línea Principal</h3>
+                <p id="principalVariation" style="color: #00d4ff;">-</p>
+            </div>
+
+            <div style="text-align: center; margin-top: 20px;">
+                <div class="loading" id="analysisLoading"></div>
+                <p id="analysisStatus" style="color: #00d4ff;">Analizando...</p>
             </div>
         </div>
     </div>
 
     <script>
         const game = new Chess();
+        let engine = null;
+        let engineReady = false;
         let selectedSquare = null;
         let highlights = [];
         let lastFromSquare = null;
@@ -442,60 +708,126 @@
         let badMoves = 0;
         let boardFlipped = false;
         let aiThinking = false;
+        let playerElo = 1600;
         let lastEval = 0;
+        let stats = { totalGames: 0, maxElo: 1600, sessions: 0 };
 
         const pieceSymbols = {
             'P': '♙', 'R': '♖', 'N': '♘', 'B': '♗', 'Q': '♕', 'K': '♔',
             'p': '♟', 'r': '♜', 'n': '♞', 'b': '♝', 'q': '♛', 'k': '♚'
         };
 
-        // ===================== EVALUACIÓN REALISTA =====================
-        function evaluatePosition() {
-            const board = game.board();
-            let score = 0;
-            const pieceValues = { 'p': 1, 'n': 3, 'b': 3.25, 'r': 5, 'q': 9, 'k': 0 };
-            
-            // Material
-            for (let row of board) {
-                for (let piece of row) {
-                    if (!piece) continue;
-                    const val = pieceValues[piece.type] || 0;
-                    score += piece.color === 'w' ? val : -val;
+        // ===================== INICIALIZAR STOCKFISH =====================
+        function initEngine() {
+            try {
+                if (typeof Stockfish === 'undefined') {
+                    throw new Error('Stockfish no disponible');
                 }
+                engine = new Stockfish();
+                engine.onmessage = function(event) {
+                    // Motor listo
+                };
+                engineReady = true;
+                document.getElementById('coachMessage').innerHTML = '<strong>✅ Motor Listo!</strong> Juega contra Stockfish real.';
+            } catch(e) {
+                console.error('Error:', e);
+                document.getElementById('coachMessage').innerHTML = '<strong>⚠️ Modo Simplificado</strong> IA básica activada.';
+                engineReady = false;
             }
-
-            // Movilidad
-            const moves = game.moves();
-            score += moves.length * 0.02;
-
-            // Rey expuesto
-            if (game.in_check()) {
-                score += game.turn() === 'w' ? -0.5 : 0.5;
-            }
-
-            return score;
         }
 
-        // ===================== BUSCAR MEJOR MOVIMIENTO (Minimax) =====================
-        function getBestMoveMinimaxSimple(depth = 3) {
-            const moves = game.moves({ verbose: true });
-            if (!moves.length) return null;
-
-            let best = moves[0];
-            let bestScore = -Infinity;
-
-            for (let move of moves) {
-                game.move(move);
-                const score = -evaluatePosition();
-                game.undo();
-
-                if (score > bestScore) {
-                    bestScore = score;
-                    best = move;
+        // ===================== EVALUAR CON STOCKFISH =====================
+        function evaluatePosition(depth = 20) {
+            return new Promise((resolve) => {
+                if (!engineReady || !engine) {
+                    // Fallback: evaluación básica
+                    const board = game.board();
+                    let score = 0;
+                    const values = {'p': 1, 'n': 3, 'b': 3.25, 'r': 5, 'q': 9};
+                    for (let row of board) {
+                        for (let p of row) {
+                            if (!p) continue;
+                            score += p.color === 'w' ? (values[p.type] || 0) : -(values[p.type] || 0);
+                        }
+                    }
+                    const winChance = Math.round(50 + Math.min(Math.max(score * 3, -50), 50));
+                    resolve({ score, bestMove: null, winChance, depth: 0 });
+                    return;
                 }
-            }
 
-            return best;
+                let bestMove = null;
+                let score = 0;
+                let depth_reached = 0;
+                let isResolved = false;
+
+                const messageHandler = (event) => {
+                    const line = event.data || event;
+                    
+                    if (line.includes('bestmove')) {
+                        if (!isResolved) {
+                            isResolved = true;
+                            engine.removeEventListener('message', messageHandler);
+                            const winChance = Math.round(50 + Math.min(Math.max(score * 2, -50), 50));
+                            resolve({ score, bestMove, winChance, depth: depth_reached });
+                        }
+                    } else {
+                        if (line.includes('score cp')) {
+                            const match = line.match(/score cp (-?\d+)/);
+                            if (match) score = parseInt(match[1]) / 100;
+                        }
+                        if (line.includes('bestmove')) {
+                            const match = line.match(/bestmove (\S+)/);
+                            if (match) bestMove = match[1];
+                        }
+                        if (line.includes('depth')) {
+                            const match = line.match(/depth (\d+)/);
+                            if (match) depth_reached = parseInt(match[1]);
+                        }
+                    }
+                };
+
+                engine.addEventListener('message', messageHandler);
+                setTimeout(() => {
+                    if (!isResolved) {
+                        isResolved = true;
+                        engine.removeEventListener('message', messageHandler);
+                        const winChance = Math.round(50 + Math.min(Math.max(score * 2, -50), 50));
+                        resolve({ score, bestMove, winChance, depth: depth_reached });
+                    }
+                }, 3000); // Timeout de 3 segundos
+
+                engine.postMessage('position fen ' + game.fen());
+                engine.postMessage('go depth ' + depth);
+            });
+        }
+
+        // ===================== OBTENER MEJOR MOVIMIENTO =====================
+        async function getBestMove(elo = 1600) {
+            return new Promise(async (resolve) => {
+                const result = await evaluatePosition(20);
+                if (!result.bestMove) {
+                    const moves = game.moves({ verbose: true });
+                    resolve(moves[0]);
+                    return;
+                }
+
+                // Según ELO, elegir variabilidad
+                const eloThresholds = { 400: 0.8, 1200: 0.6, 1800: 0.3, 2400: 0.1, 3000: 0 };
+                const threshold = eloThresholds[elo] || 0.3;
+
+                if (Math.random() < threshold) {
+                    const moves = game.moves({ verbose: true });
+                    resolve(moves[Math.floor(Math.random() * Math.min(3, moves.length))]);
+                } else {
+                    // Convertir movimiento de Stockfish a objeto chess.js
+                    const from = result.bestMove.substring(0, 2);
+                    const to = result.bestMove.substring(2, 4);
+                    const promotion = result.bestMove.length > 4 ? result.bestMove[4] : undefined;
+                    const moveObj = game.move({ from, to, promotion });
+                    game.undo();
+                    resolve(moveObj);
+                }
+            });
         }
 
         // ===================== RENDER BOARD =====================
@@ -531,7 +863,7 @@
             }
         }
 
-        // ===================== HANDLE CLICK =====================
+        // ===================== HANDLE SQUARE CLICK =====================
         function handleSquareClick(square) {
             if (aiThinking || game.game_over()) return;
 
@@ -551,14 +883,13 @@
                     highlights = [];
 
                     evaluateMoveQuality(move);
+                    updateUI();
 
                     const mode = document.getElementById('gameMode').value;
                     if ((mode === 'vs-ia' || mode === 'coach') && !game.game_over()) {
                         aiThinking = true;
-                        setTimeout(makeAIMove, 1200);
+                        setTimeout(makeAIMove, 1500);
                     }
-
-                    updateUI();
                 } else {
                     selectedSquare = null;
                     highlights = [];
@@ -572,20 +903,19 @@
         }
 
         // ===================== EVALUAR MOVIMIENTO =====================
-        function evaluateMoveQuality(move) {
-            const evalBefore = lastEval;
-            const evalAfter = evaluatePosition();
-            const diff = evalAfter - evalBefore;
-
+        async function evaluateMoveQuality(move) {
+            const result = await evaluatePosition(20);
+            const currentScore = result.score;
+            
             let quality = 'good';
-            if (diff > 0.8) quality = 'excellent';
-            else if (diff < -1) quality = 'blunder';
-            else if (diff < -0.3) quality = 'mistake';
+            if (Math.abs(currentScore - lastEval) > 1.5) quality = 'excellent';
+            else if (currentScore < lastEval - 1) quality = 'blunder';
+            else if (currentScore < lastEval - 0.3) quality = 'mistake';
 
             if (quality === 'excellent' || quality === 'good') goodMoves++;
             else badMoves++;
 
-            lastEval = evalAfter;
+            lastEval = currentScore;
             giveCoachFeedback(quality);
         }
 
@@ -593,75 +923,75 @@
             const mode = document.getElementById('gameMode').value;
             if (mode === 'free') return;
 
-            const msgs = {
-                excellent: '✅ ¡Excelente! Mejor movimiento.',
+            const messages = {
+                excellent: '✅ ¡Excelente movimiento! Mejor opción.',
                 good: '✅ Buen movimiento.',
                 mistake: '⚠️ No es la mejor opción.',
                 blunder: '❌ ¡Error grave!'
             };
 
             const coachMsg = document.getElementById('coachMessage');
-            coachMsg.textContent = msgs[type];
+            coachMsg.textContent = messages[type];
             coachMsg.className = 'coach-message ' + (type === 'excellent' || type === 'good' ? 'good' : 'bad');
         }
 
-        // ===================== IA =====================
-        function makeAIMove() {
+        // ===================== MOVIMIENTO IA =====================
+        async function makeAIMove() {
             if (game.game_over()) { aiThinking = false; return; }
-
-            const difficulty = parseInt(document.getElementById('difficulty').value);
-            const moves = game.moves({ verbose: true });
             
-            if (!moves.length) { aiThinking = false; return; }
-
-            let move;
-            if (difficulty === 5) {
-                move = getBestMoveMinimaxSimple(4);
-            } else {
-                const topN = [3, 5, 10, 15, 20][difficulty - 1];
-                move = moves[Math.floor(Math.random() * Math.min(topN, moves.length))];
-            }
+            const difficulty = parseInt(document.getElementById('difficulty').value);
+            const eloMap = { 1: 400, 2: 1200, 3: 1800, 4: 2400, 5: 3000 };
+            
+            const move = await getBestMove(eloMap[difficulty]);
+            if (!move) { aiThinking = false; return; }
 
             game.move(move);
             lastFromSquare = move.from;
             lastToSquare = move.to;
             moveCount++;
-            lastEval = evaluatePosition();
 
             updateUI();
             aiThinking = false;
 
-            if (game.game_over()) {
-                alert('🏁 Partida terminada');
-            }
+            if (game.game_over()) showGameOver();
         }
 
         // ===================== UPDATE UI =====================
-        function updateUI() {
+        async function updateUI() {
             renderBoard();
-            updateEvalBar();
+            await updateEvalBar();
+            updateLastMoveInfo();
             updateMoveHistory();
             updateStats();
+
+            if (game.game_over()) showGameOver();
         }
 
-        function updateEvalBar() {
-            const score = evaluatePosition();
-            const percentage = Math.max(0, Math.min(100, 50 + score * 10));
+        async function updateEvalBar() {
+            const result = await evaluatePosition(18);
+            const percentage = Math.max(0, Math.min(100, 50 + result.winChance));
             
             const fillEl = document.getElementById('evalBarFill');
             fillEl.style.height = percentage + '%';
-            fillEl.textContent = Math.abs(score).toFixed(2);
+            fillEl.textContent = Math.abs(result.score).toFixed(2);
             
-            if (score > 0.3) {
+            if (result.score > 0.5) {
                 fillEl.className = 'eval-bar-fill';
             } else {
                 fillEl.className = 'eval-bar-fill black-advantage';
             }
 
-            document.getElementById('evalScore').textContent = score.toFixed(2);
-            
-            const winProb = Math.round(50 + Math.min(Math.max(score * 10, -50), 50));
-            document.getElementById('evalInfo').textContent = 'Blancas ' + winProb + '%';
+            document.getElementById('evalScore').textContent = result.score.toFixed(2);
+            document.getElementById('evalInfo').textContent = result.winChance + '% Blancas';
+        }
+
+        function updateLastMoveInfo() {
+            const el = document.getElementById('lastMoveInfo');
+            if (moveCount === 0) { el.style.display = 'none'; return; }
+            el.style.display = 'grid';
+            const history = game.history({ verbose: true });
+            const lastMove = history[history.length - 1];
+            document.getElementById('playerLastMove').textContent = lastMove?.san || '-';
         }
 
         function updateMoveHistory() {
@@ -687,10 +1017,23 @@
         function updateStats() {
             document.getElementById('moveCount').textContent = moveCount;
             const total = goodMoves + badMoves;
-            document.getElementById('accuracy').textContent = total > 0 ? 
-                Math.round((goodMoves / total) * 100) + '%' : '0%';
+            document.getElementById('accuracy').textContent = total > 0 ? Math.round((goodMoves / total) * 100) + '%' : '0%';
             document.getElementById('goodMoves').textContent = goodMoves;
             document.getElementById('badMoves').textContent = badMoves;
+        }
+
+        function showGameOver() {
+            let result = '';
+            if (game.in_checkmate()) result = game.turn() === 'w' ? '¡Ganaste!' : 'Perdiste';
+            else if (game.in_draw()) result = 'Tablas';
+            else if (game.in_stalemate()) result = 'Ahogado';
+            else return;
+
+            stats.totalGames++;
+            stats.maxElo = Math.max(stats.maxElo, playerElo);
+            stats.sessions++;
+
+            alert(`🏁 Fin: ${result}\n\nPrecisión: ${document.getElementById('accuracy').textContent}`);
         }
 
         function resetGame() {
@@ -705,7 +1048,9 @@
             aiThinking = false;
             lastEval = 0;
 
-            document.getElementById('coachMessage').innerHTML = '<strong>🎮 Nueva partida</strong> ¡A jugar!';
+            document.getElementById('coachMessage').innerHTML = '<strong>🎯 Nueva partida</strong> ¡A jugar!';
+            document.getElementById('lastMoveInfo').style.display = 'none';
+
             updateUI();
         }
 
@@ -722,20 +1067,46 @@
             renderBoard();
         }
 
-        function requestHint() {
+        async function requestHint() {
             if (game.game_over() || aiThinking) return;
-            const best = getBestMoveMinimaxSimple();
-            if (!best) return;
+            const result = await evaluatePosition(22);
+            if (!result.bestMove) return;
             
-            selectedSquare = best.from;
-            highlights = [best.to];
+            const from = result.bestMove.substring(0, 2);
+            const to = result.bestMove.substring(2, 4);
+            
+            selectedSquare = from;
+            highlights = [to];
             renderBoard();
             
             const coachMsg = document.getElementById('coachMessage');
-            coachMsg.innerHTML = '<strong>💡 Pista:</strong> ' + best.san;
+            coachMsg.innerHTML = '<strong>💡 Pista:</strong> ' + from.toUpperCase() + ' a ' + to.toUpperCase();
             coachMsg.className = 'coach-message good';
         }
 
+        function analysisMode() {
+            document.getElementById('analysisModal').classList.add('active');
+            performAnalysis();
+        }
+
+        function closeAnalysis() {
+            document.getElementById('analysisModal').classList.remove('active');
+        }
+
+        async function performAnalysis() {
+            const result = await evaluatePosition(25);
+            
+            document.getElementById('whiteWinProb').textContent = result.winChance + '%';
+            document.getElementById('drawProb').textContent = (100 - result.winChance) / 2 + '%';
+            document.getElementById('blackWinProb').textContent = (100 - result.winChance) / 2 + '%';
+            document.getElementById('moveEvalAnal').textContent = result.score.toFixed(2);
+            document.getElementById('principalVariation').textContent = result.bestMove || 'Posición equilibrada';
+            document.getElementById('analysisStatus').textContent = '✅ Análisis completado a profundidad ' + result.depth;
+            document.getElementById('analysisLoading').style.display = 'none';
+        }
+
+        // Inicializar
+        initEngine();
         renderBoard();
         updateUI();
     </script>
