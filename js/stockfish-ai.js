@@ -11,7 +11,8 @@ function initStockfish() {
     
     try {
         // Crear Worker con Stockfish
-        stockfish = new Worker('https://stockfishchess.org/api/stockfish.wasm');
+        stockfish = new Worker('https://cdn.jsdelivr.net/npm/stockfish@16.1.0/stockfish.js');
+
         
         let uciOkReceived = false;
         
