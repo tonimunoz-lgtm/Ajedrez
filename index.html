@@ -8,7 +8,7 @@
         
     <!-- Tus estilos CSS (se mantiene igual) -->    
     <style>    
-        /* ... (tus estilos CSS completos, no los vuelvo a pegar para no alargar) ... */  
+        /* ... (tus estilos CSS completos) ... */  
         * {    
             margin: 0;    
             padding: 0;    
@@ -743,24 +743,22 @@
     
     <!-- CARGA DE SCRIPTS - ¡ORDEN IMPORTA! -->      
     <!-- 1. Bibliotecas de terceros (Chess.js) -->      
-    <!-- 2. Archivo del motor Stockfish (stockfish.js) - Ahora de un CDN que permita Workers de origen cruzado -->      
-    <!-- 3. Tu lógica de IA que usa Stockfish (stockfish-ai.js) -->      
-    <!-- 4. Tu lógica principal del juego (game.js) -->      
-    <!-- 5. Tu script de inicialización DOM -->      
+    <!-- 2. Tu lógica de IA que usa Stockfish (stockfish-ai.js) -->      
+    <!-- 3. Tu lógica principal del juego (game.js) -->      
+    <!-- 4. Tu script de inicialización DOM -->      
       
     <!-- 1. Carga de Chess.js desde CDN -->    
     <script src="https://cdnjs.cloudflare.com/ajax/libs/chess.js/0.10.3/chess.min.js"></script>      
         
-    <!-- 2. Carga de Stockfish desde un CDN que SÍ permite Workers de origen cruzado -->    
-    <script src="https://unpkg.com/stockfish.js/src/stockfish.js"></script> <!-- Ruta de unpkg para Stockfish.js -->  
+    <!-- Ya no se carga stockfish.js directamente aquí -->  
         
-    <!-- 3. Tu lógica de IA que usa Stockfish -->    
+    <!-- 2. Tu lógica de IA que usa Stockfish -->    
     <script src="js/stockfish-ai.js"></script>        
         
-    <!-- 4. Tu lógica principal del juego -->    
+    <!-- 3. Tu lógica principal del juego -->    
     <script src="js/game.js"></script>        
           
-    <!-- 5. Tu script de inicialización DOM (que está dentro de tu HTML) -->    
+    <!-- 4. Tu script de inicialización DOM (que está dentro de tu HTML) -->    
     <script>        
         document.addEventListener('DOMContentLoaded', async () => {      
             await initializeStockfishEngine();      
