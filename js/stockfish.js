@@ -1,7 +1,6 @@
 /*!
  * Stockfish copyright T. Romstad, M. Costalba, J. Kiiski, G. Linscott
  * and other contributors.
- *
  * Multi-variant support by Daniel Dugovic and contributors:
  * https://github.com/ddugovic/Stockfish
  *
