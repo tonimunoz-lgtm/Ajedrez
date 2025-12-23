@@ -22,13 +22,15 @@
   <p id="advice">Consejo: -</p>
 </div>
 
+<!-- jQuery necesario para Chessboard.js -->
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/chess.js/1.0.0/chess.min.js"></script>
 <script src="https://unpkg.com/chessboardjs@1.0.0/dist/chessboard-1.0.0.min.js"></script>
 
 <script>
-  // Inicializamos el tablero y la lógica
   const game = new Chess();
-  let board = Chessboard('board', {
+
+  const board = Chessboard('board', {
     draggable: true,
     position: 'start',
     onDrop: handleMove
@@ -47,17 +49,16 @@
 
   function analyzePosition() {
     stockfish.postMessage('position fen ' + game.fen());
-    stockfish.postMessage('go depth 15'); // profundidad 15 para análisis
+    stockfish.postMessage('go depth 15'); // profundidad 15
   }
 
   function handleMove(source, target) {
     const move = game.move({ from: source, to: target, promotion: 'q' });
     if (move === null) return 'snapback';
 
-    analyzePosition(); // analizamos la nueva posición
+    analyzePosition();
 
     setTimeout(() => {
-      // Comprobamos si el movimiento coincide con el recomendado
       stockfish.postMessage('position fen ' + game.fen());
       stockfish.postMessage('go depth 15');
 
