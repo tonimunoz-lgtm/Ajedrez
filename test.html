@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Test Stockfish</title>
+</head>
+<body>
+<h1>Test Stockfish Local</h1>
+<div id="coachMessage">Cargando...</div>
+<script>
+let engine = new Worker('js/stockfish.js');
+engine.onmessage = (e) => {
+  console.log('Stockfish dice:', e.data);
+  if(e.data === 'uciok'){
+    engine.postMessage('isready');
+  }
+  if(e.data === 'readyok'){
+    document.getElementById('coachMessage').innerText = '✅ Stockfish listo';
+  }
+};
+engine.postMessage('uci');
+</script>
+</body>
+</html>
