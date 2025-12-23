@@ -1,103 +1,150 @@
-// ===================== STOCKFISH AI - VERSIÓN UNIFICADA =====================
+// ===================== STOCKFISH AI - VERSIÓN CORREGIDA =====================
 let stockfish = null;
 let stockfishReady = false;
-let evaluationCache = {};
 let currentEval = 0;
 let currentBestMove = null;
+let pendingCallback = null;
 
-// ===================== INICIALIZAR STOCKFISH =====================
+// ===================== INICIALIZAR STOCKFISH CON MEJOR MANEJO =====================
 function initStockfish() {
+    console.log('🔄 Iniciando Stockfish...');
+    
     try {
-        console.log('Inicializando Stockfish desde CDN...');
+        // Crear Worker con Stockfish
+        stockfish = new Worker('https://stockfishchess.org/api/stockfish.wasm');
         
-        // Crear Worker para Stockfish
-        stockfish = new Worker('https://cdn.jsdelivr.net/npm/stockfish@16.1.0/src/stockfish.js');
-        
-        let initComplete = false;
+        let uciOkReceived = false;
         
         stockfish.onmessage = function(event) {
             const line = event.data;
+            console.log('[SF]', line);
             
-            // Stockfish listo
+            // Reconocer que UCI está listo
             if (line === 'uciok') {
+                uciOkReceived = true;
                 stockfishReady = true;
-                initComplete = true;
-                console.log('✅ Stockfish REAL cargado y listo');
+                console.log('✅ Stockfish UCI iniciado correctamente');
                 document.getElementById('coachMessage').innerHTML = 
-                    '<strong>✅ Stockfish Real</strong> Motor profesional Elo 3500+ activado.';
+                    '<strong>✅ Stockfish Real</strong> Motor profesional activado (Elo 3500+).';
             }
             
-            // Evaluación en tiempo real
+            // Evaluar posición en tiempo real
             if (line.includes('info depth')) {
+                // Extraer score en centipawns
                 const scoreMatch = line.match(/score (cp|mate) (-?\d+)/);
                 if (scoreMatch) {
                     const type = scoreMatch[1];
                     const val = parseInt(scoreMatch[2]);
                     currentEval = (type === 'cp') ? val / 100 : (val > 0 ? 999 : -999);
+                    console.log('📊 Evaluación:', currentEval);
+                }
+                
+                // Extraer mejor movimiento de PV
+                const pvMatch = line.match(/pv (\S+)/);
+                if (pvMatch) {
+                    currentBestMove = pvMatch[1];
                 }
             }
             
-            // Mejor movimiento encontrado
+            // Mejor movimiento final
             if (line.startsWith('bestmove')) {
                 const parts = line.split(' ');
-                currentBestMove = parts[1] || null;
+                const bestMove = parts[1];
+                currentBestMove = bestMove;
+                
+                console.log('🎯 Mejor movimiento:', bestMove, 'Eval:', currentEval);
                 
                 // Ejecutar callback si existe
-                if (window.stockfishCallback) {
-                    window.stockfishCallback(currentBestMove, currentEval);
-                    window.stockfishCallback = null;
+                if (pendingCallback) {
+                    const cb = pendingCallback;
+                    pendingCallback = null;
+                    
+                    // Delay mínimo de 1.5 segundos para que parezca que está pensando
+                    setTimeout(() => {
+                        cb(bestMove, currentEval);
+                    }, 1500);
                 }
             }
         };
         
         stockfish.onerror = (error) => {
-            console.error('Error en Stockfish Worker:', error);
+            console.error('❌ Error en Stockfish Worker:', error);
             stockfishReady = false;
             document.getElementById('coachMessage').innerHTML = 
-                '<strong>⚠️ Error en Stockfish</strong> Usando análisis local.';
+                '<strong>❌ Error Stockfish</strong> Revisa la conexión a internet.';
         };
         
-        // Iniciar protocolo UCI
+        // Enviar comando UCI
+        console.log('→ Enviando: uci');
         stockfish.postMessage('uci');
         
-        // Timeout: si en 5 segundos no inicia, marcar como no disponible
+        // Timeout: si en 10 segundos no responde, mostrar error
         setTimeout(() => {
-            if (!initComplete) {
-                console.warn('Timeout inicializando Stockfish');
+            if (!uciOkReceived) {
+                console.warn('⏱️ Timeout esperando respuesta UCI');
                 stockfishReady = false;
+                document.getElementById('coachMessage').innerHTML = 
+                    '<strong>⚠️ Stockfish Lento</strong> Intenta nuevamente.';
             }
-        }, 5000);
+        }, 10000);
         
     } catch (error) {
-        console.error('Error creando Stockfish Worker:', error);
+        console.error('❌ Error inicializando Stockfish:', error);
         stockfishReady = false;
         document.getElementById('coachMessage').innerHTML = 
             '<strong>⚠️ Stockfish No Disponible</strong> Usando análisis local.';
     }
 }
 
-// ===================== OBTENER EVALUACIÓN Y MEJOR MOVIMIENTO =====================
+// ===================== OBTENER MEJOR MOVIMIENTO =====================
 function getBestMove(fen, depth, callback) {
     if (!stockfishReady) {
-        console.warn('Stockfish no está listo');
-        if (callback) callback(null, 0);
+        console.warn('⚠️ Stockfish no disponible, usando análisis local');
+        // Fallback: análisis local rápido
+        setTimeout(() => {
+            const moves = game.moves({ verbose: true });
+            const randomMove = moves[Math.floor(Math.random() * Math.min(5, moves.length))];
+            if (randomMove) {
+                const move = randomMove.from + randomMove.to;
+                callback(move, evaluatePosition());
+            } else {
+                callback(null, 0);
+            }
+        }, 1000);
         return;
     }
     
-    // Guardar callback global para cuando Stockfish responda
-    window.stockfishCallback = callback;
+    console.log('🔍 Buscando movimiento a profundidad', depth, 'en:', fen);
+    pendingCallback = callback;
     
     try {
         stockfish.postMessage(`position fen ${fen}`);
         stockfish.postMessage(`go depth ${depth}`);
     } catch (error) {
-        console.error('Error enviando comando a Stockfish:', error);
-        if (callback) callback(null, 0);
+        console.error('❌ Error enviando a Stockfish:', error);
+        pendingCallback = null;
+        callback(null, 0);
     }
 }
 
 // ===================== EVALUACIÓN DE POSICIÓN =====================
 function evaluatePosition() {
+    // Evaluación local rápida si Stockfish no está disponible
+    if (!stockfishReady) {
+        const board = game.board();
+        let score = 0;
+        const values = { 'p': 1, 'n': 3, 'b': 3.25, 'r': 5, 'q': 9 };
+        
+        for (let row of board) {
+            for (let piece of row) {
+                if (!piece) continue;
+                const val = values[piece.type] || 0;
+                score += piece.color === 'w' ? val : -val;
+            }
+        }
+        return score;
+    }
+    
     return currentEval;
 }
 
@@ -119,8 +166,6 @@ function calculateWinProbability() {
 
 // ===================== EVALUAR CALIDAD DE MOVIMIENTO =====================
 function evaluateMoveQuality(move) {
-    if (!stockfishReady) return;
-    
     const currentScore = evaluatePosition();
     const diff = currentScore - lastEval;
     
@@ -152,50 +197,45 @@ function makeAIMove() {
         return;
     }
 
-    if (!stockfishReady) {
-        console.warn('Stockfish no disponible, movimiento aleatorio');
-        const moves = game.moves({ verbose: true });
-        if (moves.length === 0) {
-            aiThinking = false;
-            return;
-        }
-        const move = moves[Math.floor(Math.random() * moves.length)];
-        game.move(move);
-        lastFromSquare = move.from;
-        lastToSquare = move.to;
-        moveCount++;
-        aiThinking = false;
-        updateUI();
-        return;
-    }
-
     const difficulty = parseInt(document.getElementById('difficulty').value);
     const depthMap = { 1: 6, 2: 12, 3: 18, 4: 24, 5: 30 };
     const depth = depthMap[difficulty] || 18;
 
     aiThinking = true;
     const fen = game.fen();
+    
+    console.log('🤖 IA pensando a profundidad', depth);
 
     getBestMove(fen, depth, (bestMove, evalScore) => {
         if (!bestMove || bestMove === '(none)') {
-            console.warn('Stockfish no encontró movimiento');
-            aiThinking = false;
-            return;
-        }
-
-        const from = bestMove.substring(0, 2);
-        const to = bestMove.substring(2, 4);
-        const promotion = bestMove.length > 4 ? bestMove[4] : 'q';
-
-        const move = game.move({ from, to, promotion });
-        
-        if (move) {
+            console.warn('⚠️ IA no encontró movimiento válido');
+            
+            // Movimiento aleatorio de fallback
+            const moves = game.moves({ verbose: true });
+            if (moves.length === 0) {
+                aiThinking = false;
+                return;
+            }
+            const move = moves[Math.floor(Math.random() * moves.length)];
+            game.move(move);
             lastFromSquare = move.from;
             lastToSquare = move.to;
             moveCount++;
-            console.log('IA jugó:', move.san);
         } else {
-            console.warn('Movimiento Stockfish inválido:', bestMove);
+            const from = bestMove.substring(0, 2);
+            const to = bestMove.substring(2, 4);
+            const promotion = bestMove.length > 4 ? bestMove[4] : 'q';
+
+            const move = game.move({ from, to, promotion });
+            
+            if (move) {
+                lastFromSquare = move.from;
+                lastToSquare = move.to;
+                moveCount++;
+                console.log('✅ IA jugó:', move.san);
+            } else {
+                console.warn('❌ Movimiento inválido:', bestMove);
+            }
         }
 
         aiThinking = false;
@@ -211,16 +251,13 @@ function makeAIMove() {
 function requestHint() {
     if (game.game_over() || aiThinking) return;
 
-    if (!stockfishReady) {
-        console.warn('Stockfish no disponible para pista');
-        return;
-    }
-
     const difficulty = parseInt(document.getElementById('difficulty').value);
     const depthMap = { 1: 8, 2: 14, 3: 20, 4: 26, 5: 32 };
     const depth = depthMap[difficulty] || 20;
 
     const fen = game.fen();
+    
+    console.log('💡 Buscando pista a profundidad', depth);
 
     getBestMove(fen, depth, (bestMove, evalScore) => {
         if (!bestMove || bestMove === '(none)') {
@@ -239,11 +276,6 @@ function requestHint() {
 
 // ===================== ANÁLISIS DETALLADO =====================
 function performAnalysis() {
-    if (!stockfishReady) {
-        console.warn('Stockfish no disponible para análisis');
-        return;
-    }
-
     const difficulty = parseInt(document.getElementById('difficulty').value);
     const depthMap = { 1: 10, 2: 16, 3: 22, 4: 28, 5: 35 };
     const depth = depthMap[difficulty] || 22;
@@ -252,6 +284,8 @@ function performAnalysis() {
 
     document.getElementById('analysisLoading').style.display = 'inline-block';
     document.getElementById('analysisStatus').innerHTML = 'Analizando con Stockfish...';
+    
+    console.log('📊 Análisis a profundidad', depth);
 
     getBestMove(fen, depth, (bestMove, evalScore) => {
         const prob = calculateWinProbability();
@@ -283,7 +317,7 @@ function performAnalysis() {
         document.getElementById('middlegameEval').innerHTML = phase === 'Medio Juego' ? evalScore.toFixed(2) : '-';
         document.getElementById('endgameEval').innerHTML = phase === 'Final' ? evalScore.toFixed(2) : '-';
         document.getElementById('principalVariation').innerHTML = bestMove || '-';
-        document.getElementById('analysisStatus').innerHTML = '✅ Análisis completado con Stockfish';
+        document.getElementById('analysisStatus').innerHTML = '✅ Análisis completado';
         document.getElementById('analysisLoading').style.display = 'none';
     });
 }
