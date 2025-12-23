@@ -1,23 +1,29 @@
+// js/game.js  
+  
 // ===================== VARIABLES GLOBALES =====================  
-const game = new Chess();  
-let selectedSquare = null;  
-let highlights = [];  
-let lastFromSquare = null;  
-let lastToSquare = null;  
-let moveCount = 0;  
-let goodMoves = 0;  
-let badMoves = 0;  
-let boardFlipped = false;  
-let aiThinking = false;  
-let playerElo = 1600;  
-let currentStockfishScore = 0; // Guardaremos la última evaluación de Stockfish aquí  
+const game = new Chess(); // Instancia principal del juego Chess.js  
+let selectedSquare = null; // Cuadrado actualmente seleccionado por el jugador  
+let highlights = []; // Cuadrados a resaltar (movimientos legales, selección)  
+let lastFromSquare = null; // Origen del último movimiento  
+let lastToSquare = null; // Destino del último movimiento  
+let moveCount = 0; // Contador de movimientos  
+let goodMoves = 0; // Contador de movimientos 'buenos' del jugador  
+let badMoves = 0; // Contador de movimientos 'malos' del jugador  
+let boardFlipped = false; // Estado del tablero (true si está girado)  
+let aiThinking = false; // Bandera para indicar si la IA está pensando  
+let playerElo = 1600; // ELO actual del jugador  
+let currentStockfishScore = 0; // Almacena la última evaluación de Stockfish (desde la perspectiva de las blancas)  
+  
+// Variables de estadísticas (ejemplo, se pueden cargar/guardar en localStorage)  
 let stats = { totalGames: 0, maxElo: 1600, sessions: 0 };  
   
+// Símbolos de piezas para la visualización del tablero  
 const pieceSymbols = {  
     'P': '♙', 'R': '♖', 'N': '♘', 'B': '♗', 'Q': '♕', 'K': '♔',  
     'p': '♟', 'r': '♜', 'n': '♞', 'b': '♝', 'q': '♛', 'k': '♚'  
 };  
   
+// Frases del entrenador para diferentes tipos de jugadas  
 const coachPhrases = {  
     excellent: ["¡Perfecto! Esa es la mejor jugada.", "Increíble, análisis excelente.", "¡Óptimo movimiento!"],  
     good: ["Buen movimiento.", "Sigue así, buena elección.", "Movimiento sólido."],  
@@ -27,24 +33,19 @@ const coachPhrases = {
 };  
   
   
-// ===================== EVALUACIÓN Y PROBABILIDADES (AHORA BASADO EN STOCKFISH) =====================  
-// Estas funciones ahora usarán el `currentStockfishScore` que se actualizará con Stockfish  
-async function updateGameEvaluation() {  
-    if (!engineReady) { // Si Stockfish no está listo, usamos la evaluación heurística local (temporal)  
-        currentStockfishScore = _internalEvaluatePosition(); // Tu función original, renombrada  
-        return;  
-    }  
-    const result = await evaluateWithStockfish(10); // Profundidad moderada para actualización constante  
-    currentStockfishScore = result.score;  
-    // console.log("Stockfish Score:", currentStockfishScore); // Para depuración  
-}  
+// ===================== EVALUACIÓN LOCAL (FALLBACK) =====================  
   
-function _internalEvaluatePosition() { // Tu antigua evaluatePosition, renombrada para fallback  
+/**  
+ * Función de evaluación heurística local, usada como fallback si Stockfish no está disponible.  
+ * Evalúa la posición basándose en el material y una simplificación de movilidad.  
+ * @returns {number} El score de la posición (positivo para blancas, negativo para negras).  
+ */  
+function _internalEvaluatePosition() {  
     const board = game.board();  
     let score = 0;  
-    const pieceValues = { 'p': 1, 'n': 3, 'b': 3.25, 'r': 5, 'q': 9, 'k': 0 };  
-      
-    // Material  
+    const pieceValues = { 'p': 1, 'n': 3, 'b': 3.25, 'r': 5, 'q': 9, 'k': 0 }; // Valores de piezas estándar  
+  
+    // Evaluar material  
     for (let i = 0; i < 8; i++) {  
         for (let j = 0; j < 8; j++) {  
             const piece = board[i][j];  
@@ -58,28 +59,33 @@ function _internalEvaluatePosition() { // Tu antigua evaluatePosition, renombrad
         }  
     }  
   
-    // Movilidad (muy simplista, Stockfish hace esto mucho mejor)  
+    // Evaluar movilidad (muy simplista)  
+    // Se añade un pequeño valor por cada movimiento legal posible.  
+    // Stockfish hace esto mucho más sofisticado.  
     const moves = game.moves();  
-    score += (moves.length * 0.05) * (game.turn() === 'w' ? 1 : -1); // Suma si es tu turno, resta si es del oponente  
+    score += (moves.length * 0.05) * (game.turn() === 'w' ? 1 : -1);  
   
     return score;  
 }  
   
+/**  
+ * Calcula las probabilidades de victoria para blancas, negras y tablas basándose en el score de Stockfish.  
+ * Utiliza una función logística ajustada para mapear el score a probabilidades.  
+ * @param {number} score - El score de la posición en centipeones (positivo para blancas).  
+ * @returns {object} Un objeto con las probabilidades en porcentaje.  
+ */  
 function calculateWinProbability(score) {  
-    // Función de cálculo de probabilidad de victoria basada en el score de Stockfish  
-    // El score de Stockfish está en centipeones. Una puntuación de 200 (2 peones) ya es significativa.  
-    // Usaremos una función logística (sigmoid) ajustada para valores de Stockfish.  
-    // k es un factor de escala, t es el umbral para 50/50.  
-    const k = 0.00368208; // Ajustado para centipeones, de stockfish.js en lichess  
-    const whiteProb = 1 / (1 + Math.exp(-k * score)); // Probabilidad de ganar para las blancas  
+    // k es un factor de escala ajustado para centipeones (tomado de stockfish.js en lichess)  
+    const k = 0.00368208;  
+    const whiteProb = 1 / (1 + Math.exp(-k * score)); // Probabilidad de victoria para las blancas  
   
-    // Para tablas, podemos estimar un porcentaje.  
-    // Una simplificación: asumiendo que si la probabilidad de victoria para un lado no es muy alta, hay chances de tablas.  
-    // Esto es muy simplificado, Stockfish puede dar probabilidades de tablas, pero el wrapper actual no lo expone.  
+    // Estimación simplificada de probabilidad de tablas:  
+    // Si la posición es relativamente igual (score cercano a 0), hay más chances de tablas.  
     let drawProb = 0.0;  
-    if (Math.abs(score) < 100) { // Si la posición es relativamente igual (-1 a +1 peón)  
-        drawProb = 0.2 + (1 - whiteProb - (1-whiteProb)) * 0.5; // Ajuste heurístico  
-        drawProb = Math.min(0.5, Math.max(0.05, drawProb)); // Aseguramos que esté en un rango razonable  
+    if (Math.abs(score) < 100) { // Si la ventaja es menor a 1 peón  
+        // Ajuste heurístico para dar un rango de probabilidad de tablas  
+        drawProb = 0.2 + (1 - whiteProb - (1 - whiteProb)) * 0.5;  
+        drawProb = Math.min(0.5, Math.max(0.05, drawProb)); // Asegura un rango razonable (5%-50%)  
     }  
   
     const blackProb = 1 - whiteProb - drawProb;  
@@ -88,163 +94,233 @@ function calculateWinProbability(score) {
         white: Math.round(whiteProb * 100),  
         black: Math.round(blackProb * 100),  
         draw: Math.round(drawProb * 100),  
-        // Decisive es la suma de ganar para blancas o negras  
-        decisive: Math.round((whiteProb + blackProb) * 100)  
+        decisive: Math.round((whiteProb + blackProb) * 100) // Probabilidad de que el resultado no sea tablas  
     };  
 }  
   
   
-// ===================== RENDER BOARD =====================  
-// (Sin cambios, ya está bien)  
+// ===================== RENDERIZADO DEL TABLERO =====================  
+  
+/**  
+ * Renderiza el tablero de ajedrez en el elemento HTML 'board'.  
+ * Dibuja cuadrados, piezas y aplica resaltados de selección/movimientos.  
+ */  
 function renderBoard() {  
     const boardEl = document.getElementById('board');  
-    boardEl.innerHTML = '';  
+    if (!boardEl) {  
+        console.error("Elemento 'board' no encontrado.");  
+        return;  
+    }  
+    boardEl.innerHTML = ''; // Limpiar el tablero existente  
   
     for (let row = 0; row < 8; row++) {  
         for (let col = 0; col < 8; col++) {  
+            // Ajustar fila y columna si el tablero está girado  
             const r = boardFlipped ? 7 - row : row;  
             const c = boardFlipped ? 7 - col : col;  
-            const square = String.fromCharCode(97 + c) + (8 - r);  
-            const piece = game.get(square);  
+            const square = String.fromCharCode(97 + c) + (8 - r); // Convertir a notación de cuadrado (ej. "a1", "h8")  
+            const piece = game.get(square); // Obtener la pieza en ese cuadrado  
   
             const squareEl = document.createElement('div');  
             squareEl.className = 'square ' + ((r + c) % 2 === 0 ? 'light' : 'dark');  
   
+            // Aplicar clases de estilo para selección y resaltados  
             if (selectedSquare === square) squareEl.classList.add('selected');  
             if (highlights.includes(square)) squareEl.classList.add('highlight');  
             if ((square === lastFromSquare || square === lastToSquare) && moveCount > 0) {  
                 squareEl.classList.add('last-move');  
             }  
   
+            // Mostrar la pieza si existe en el cuadrado  
             if (piece) {  
                 squareEl.textContent = pieceSymbols[piece.type];  
                 squareEl.style.color = piece.color === 'w' ? '#fff' : '#000';  
-                squareEl.style.textShadow = piece.color === 'w' ? '2px 2px 4px #000' : '1px 1px 3px #fff';  
+                // Añadir un pequeño text-shadow para mejorar la visibilidad  
+                squareEl.style.textShadow = piece.color === 'w' ? '2px 2px 4px rgba(0,0,0,0.7)' : '1px 1px 3px rgba(255,255,255,0.7)';  
             }  
   
+            // Añadir el evento click a cada cuadrado  
             squareEl.addEventListener('click', () => handleSquareClick(square));  
             boardEl.appendChild(squareEl);  
         }  
     }  
 }  
   
-// ===================== HANDLE SQUARE CLICK =====================  
-async function handleSquareClick(square) { // Convertido a async  
-    if (aiThinking || game.game_over()) return;  
   
-    const piece = game.get(square);  
+// ===================== MANEJO DE CLICKS EN CUADRADOS =====================  
   
-    if (selectedSquare && piece && game.get(selectedSquare).color === piece.color) {  
-        selectedSquare = square;  
-        highlights = game.moves({ square, verbose: true }).map(m => m.to);  
-    } else if (selectedSquare) {  
-        const tempMove = { from: selectedSquare, to: square, promotion: 'q' }; // Intenta con promoción a reina por defecto  
+/**  
+ * Maneja el evento de click en un cuadrado del tablero.  
+ * Gestiona la selección de piezas, movimientos y la interacción con la IA.  
+ * @param {string} square - La notación del cuadrado donde se hizo clic (ej. "e2").  
+ */  
+async function handleSquareClick(square) {  
+    if (aiThinking || game.game_over()) return; // Ignorar clics si la IA está pensando o el juego terminó  
   
-        const move = game.move(tempMove);  
+    const pieceOnClickedSquare = game.get(square);  
+    const mode = document.getElementById('gameMode').value;  
   
-        if (move) {  
-            lastFromSquare = selectedSquare;  
-            lastToSquare = square;  
-            moveCount++;  
-            selectedSquare = null;  
-            highlights = [];  
+    // Caso 1: Hay una pieza seleccionada  
+    if (selectedSquare) {  
+        const selectedPiece = game.get(selectedSquare);  
   
-            // Evaluar la calidad del movimiento antes de que se mueva la IA  
-            await evaluateMoveQuality(move); // Esperamos la evaluación de Stockfish  
-  
-            const mode = document.getElementById('gameMode').value;  
-            if ((mode === 'vs-ia' || mode === 'coach') && !game.game_over()) {  
-                aiThinking = true;  
-                // Muestra un indicador de pensamiento de la IA  
-                document.getElementById('coachMessage').innerHTML = '<strong>Pensando...</strong> <span class="loading"></span>';  
-                document.getElementById('coachMessage').classList.remove('good', 'bad'); // Limpia estilos  
-  
-                // Retraso para que el usuario vea el movimiento y el mensaje de "pensando"  
-                setTimeout(async () => {  
-                    await makeAIMove(); // Ahora makeAIMove es asíncrono  
-                    aiThinking = false; // Importante resetear esto después de que la IA ha movido  
-                    updateUI(); // Actualizar la UI después del movimiento de la IA y su evaluación  
-                }, 1000); // 1 segundo de "pensamiento" visible  
-            } else {  
-                await updateGameEvaluation(); // Actualiza la evaluación del tablero después del movimiento del jugador  
-                updateUI();  
-            }  
+        // Si se hace clic en una pieza del mismo color que la seleccionada, cambiar selección  
+        if (pieceOnClickedSquare && selectedPiece.color === pieceOnClickedSquare.color) {  
+            selectedSquare = square;  
+            highlights = game.moves({ square, verbose: true }).map(m => m.to);  
         } else {  
-            selectedSquare = null;  
-            highlights = [];  
+            // Intentar realizar el movimiento  
+            const playerColor = selectedPiece.color; // Capturar el color del jugador antes de que se mueva  
+  
+            // Intentar con promoción a reina por defecto (chess.js la gestiona automáticamente si es necesaria)  
+            const tempMove = { from: selectedSquare, to: square, promotion: 'q' };  
+            const move = game.move(tempMove);  
+  
+            if (move) {  
+                // Movimiento válido  
+                lastFromSquare = selectedSquare;  
+                lastToSquare = square;  
+                moveCount++;  
+                selectedSquare = null;  
+                highlights = [];  
+  
+                // Evaluar la calidad del movimiento del jugador (asíncrono)  
+                await evaluateMoveQuality(move);  
+  
+                // Si estamos en modo IA o entrenador y el juego no ha terminado  
+                if ((mode === 'vs-ia' || mode === 'coach') && !game.game_over()) {  
+                    aiThinking = true;  
+                    // Mostrar indicador de pensamiento de la IA en el coachMessage  
+                    document.getElementById('coachMessage').innerHTML = '<strong>Pensando...</strong> <span class="loading"></span>';  
+                    document.getElementById('coachMessage').classList.remove('good', 'bad'); // Limpiar estilos previos  
+  
+                    // Pequeño retraso para la experiencia de usuario (ver mensaje "pensando")  
+                    setTimeout(async () => {  
+                        const aiMove = await window.makeAIMove(); // Obtener movimiento de la IA (de stockfish-ai.js)  
+  
+                        if (aiMove) {  
+                            game.move(aiMove); // Aplicar movimiento de la IA  
+                            lastFromSquare = aiMove.from;  
+                            lastToSquare = aiMove.to;  
+                            moveCount++;  
+                        } else {  
+                            console.error("La IA no pudo hacer un movimiento o el juego terminó.");  
+                        }  
+                        aiThinking = false; // La IA ha terminado de pensar  
+                        updateUI(); // Actualizar toda la interfaz después del movimiento de la IA  
+                    }, 1000); // 1 segundo de "pensamiento" visible  
+                } else {  
+                    // Si no hay IA o juego terminado, actualizar UI solo por el movimiento del jugador  
+                    updateUI();  
+                }  
+            } else {  
+                // Movimiento inválido, deseleccionar pieza y borrar resaltados  
+                selectedSquare = null;  
+                highlights = [];  
+            }  
         }  
-    } else if (piece && piece.color === game.turn()) {  
+    } else if (pieceOnClickedSquare && pieceOnClickedSquare.color === game.turn()) {  
+        // Caso 2: No hay pieza seleccionada, pero se hace clic en una pieza del turno actual  
         selectedSquare = square;  
         highlights = game.moves({ square, verbose: true }).map(m => m.to);  
+    } else {  
+        // Caso 3: Clic en cuadrado vacío o pieza del oponente sin pieza seleccionada  
+        selectedSquare = null;  
+        highlights = [];  
     }  
   
-    renderBoard();  
+    renderBoard(); // Volver a dibujar el tablero para reflejar los cambios (selección, resaltados)  
 }  
   
+  
 // ===================== EVALUAR CALIDAD DE MOVIMIENTO (CON STOCKFISH) =====================  
+  
+/**  
+ * Evalúa la calidad del último movimiento del jugador utilizando Stockfish.  
+ * Compara la evaluación de la posición antes y después del movimiento para dar feedback.  
+ * @param {object} playerMove - El objeto de movimiento de chess.js que el jugador acaba de realizar.  
+ */  
 async function evaluateMoveQuality(playerMove) {  
-    if (!engineReady) {  
-        giveCoachFeedback('good'); // Fallback si Stockfish no está cargado  
+    // Verificar si Stockfish está listo a través de la variable global 'engineReady' de stockfish-ai.js  
+    if (!window.engineReady) {  
+        giveCoachFeedback('good', "Stockfish no cargado, evaluación local."); // Fallback  
         return;  
     }  
   
-    // Obtener la evaluación antes del movimiento del jugador  
-    game.undo(); // Deshacer el movimiento del jugador para evaluar la posición ANTES  
-    const prevEvalResult = await evaluateWithStockfish(10); // Profundidad de 10 para una evaluación rápida  
+    // Determinar el color del jugador que acaba de hacer el movimiento  
+    // Obtenemos el color de la pieza que se movió, ya que game.turn() ya ha cambiado.  
+    const playerColor = playerMove.color;   
+  
+    // Obtener la evaluación ANTES del movimiento del jugador  
+    game.undo(); // Deshacer el movimiento del jugador para volver a la posición anterior  
+    // Usamos evaluateWithStockfish de stockfish-ai.js  
+    const prevEvalResult = await window.evaluateWithStockfish(10); // Profundidad moderada para rapidez  
+    const prevScore = prevEvalResult.score; // Score desde la perspectiva de las blancas  
+  
     game.move(playerMove); // Rehacer el movimiento del jugador  
   
-    // Obtener la evaluación después del movimiento del jugador  
-    const currentEvalResult = await evaluateWithStockfish(10); // Profundidad de 10  
+    // Obtener la evaluación DESPUÉS del movimiento del jugador  
+    const currentEvalResult = await window.evaluateWithStockfish(10);  
+    const currentScore = currentEvalResult.score; // Score desde la perspectiva de las blancas  
   
-    const prevScore = prevEvalResult.score;  
-    const currentScore = currentEvalResult.score;  
-  
-    // Ajustar la puntuación según el turno  
-    const turnMultiplier = game.turn() === 'b' ? 1 : -1; // Si es turno de las negras, el movimiento del jugador blanco es positivo, si es turno de las blancas, el movimiento del jugador negro es negativo.  
-  
-    // El `currentStockfishScore` debe reflejar la evaluación después del movimiento del jugador  
+    // Actualizar la evaluación global de Stockfish para la UI  
     currentStockfishScore = currentEvalResult.score;  
   
-  
     // Calcular la diferencia en la puntuación desde la perspectiva del jugador que acaba de mover  
-    let scoreDifference;  
-    if (game.turn() === 'b') { // Si las negras están a punto de mover (jugador blanco acaba de mover)  
-        scoreDifference = currentScore - prevScore;  
-    } else { // Si las blancas están a punto de mover (jugador negro acaba de mover)  
-        scoreDifference = prevScore - currentScore; // Invertimos para el punto de vista del jugador negro  
+    let scoreDifference; // Representa cuánto mejoró/empeoró la posición para el jugador  
+    if (playerColor === 'w') {  
+        scoreDifference = currentScore - prevScore; // Si blancas movieron, un score más alto es mejor para ellas  
+    } else { // playerColor === 'b'  
+        scoreDifference = prevScore - currentScore; // Si negras movieron, un score más bajo (para blancas) es mejor para ellas  
     }  
   
-  
-    // Ajustar los umbrales para la retroalimentación  
-    let quality = 'good';  
-    if (scoreDifference > 1.5) { // Mejoró mucho la posición (1.5 peones)  
+    // Definir umbrales para clasificar la calidad del movimiento  
+    let quality = 'good'; // Por defecto  
+    if (scoreDifference > 1.0) { // Mejoró significativamente (ej. +1 peón)  
         quality = 'excellent';  
-    } else if (scoreDifference > 0.3) { // Mejoró la posición (0.3 peones)  
+    } else if (scoreDifference > 0.2) { // Mejoró ligeramente (ej. +0.2 peones)  
         quality = 'good';  
-    } else if (scoreDifference < -0.3 && scoreDifference >= -1) { // Empeoró un poco (0.3 a 1 peón)  
+    } else if (scoreDifference < -0.2 && scoreDifference >= -0.8) { // Empeoró un poco (entre -0.2 y -0.8 peones)  
         quality = 'mistake';  
-    } else if (scoreDifference < -1) { // Empeoró mucho (más de 1 peón)  
+    } else if (scoreDifference < -0.8) { // Empeoró mucho (más de -0.8 peones)  
         quality = 'blunder';  
+    } else {  
+        quality = 'good'; // Si el cambio es muy pequeño, se considera un movimiento neutral o bueno  
     }  
   
+    // Actualizar contadores de buenos/malos movimientos  
     if (quality === 'excellent' || quality === 'good') goodMoves++;  
     if (quality === 'mistake' || quality === 'blunder') badMoves++;  
   
+    // Dar feedback al jugador  
     giveCoachFeedback(quality);  
 }  
   
+  
 // ===================== FEEDBACK DEL ENTRENADOR =====================  
+  
+/**  
+ * Muestra un mensaje de feedback al jugador en el elemento 'coachMessage'.  
+ * @param {string} type - Tipo de feedback (ej. 'excellent', 'good', 'mistake', 'blunder', 'hint').  
+ * @param {string} [message=null] - Mensaje específico a mostrar. Si es null, se elige una frase aleatoria.  
+ */  
 function giveCoachFeedback(type, message = null) {  
     const mode = document.getElementById('gameMode').value;  
-    if (mode === 'free') return;  
+    if (mode === 'free') return; // No dar feedback en modo libre  
   
     const phrases = coachPhrases[type];  
-    const phrase = message || phrases[Math.floor(Math.random() * phrases.length)];  
+    const phrase = message || phrases[Math.floor(Math.random() * phrases.length)]; // Elegir frase aleatoria si no se da mensaje  
   
     const coachMsg = document.getElementById('coachMessage');  
-    let icon = '';  
-    let className = 'coach-message';  
+    if (!coachMsg) {  
+        console.error("Elemento 'coachMessage' no encontrado.");  
+        return;  
+    }  
   
+    let icon = '';  
+    let className = 'coach-message'; // Clase base  
+  
+    // Asignar icono y clase de estilo según el tipo de feedback  
     if (type === 'excellent' || type === 'good') {  
         icon = '✅';  
         className += ' good';  
@@ -253,72 +329,201 @@ function giveCoachFeedback(type, message = null) {
         className += ' bad';  
     } else if (type === 'hint') {  
         icon = '💡';  
-        className += ' good'; // Podrías tener un estilo específico para pistas si quieres  
+        className += ' good'; // Podrías tener una clase 'hint' específica para estilos  
     }  
-      
+        
     coachMsg.innerHTML = `<strong>${icon}</strong> ${phrase}`;  
-    coachMsg.className = className;  
+    coachMsg.className = className; // Aplicar las clases  
 }  
   
-// ===================== UPDATE UI =====================  
-async function updateUI() { // Convertido a async  
-    renderBoard();  
-    await updateEvalBar(); // Esperar a que la barra de evaluación se actualice con Stockfish  
-    updateLastMoveInfo();  
-    updateMoveHistory();  
-    updateStats();  
   
-    if (game.game_over()) showGameOver();  
+// ===================== ACTUALIZACIÓN DE LA INTERFAZ DE USUARIO =====================  
+  
+/**  
+ * Actualiza todos los componentes de la interfaz de usuario.  
+ * Esto incluye el tablero, la barra de evaluación, información del último movimiento, historial, etc.  
+ */  
+async function updateUI() {  
+    renderBoard(); // Redibujar el tablero  
+    await window.updateEvaluationDisplay(); // Actualizar el panel de Stockfish y la barra de evaluación (desde stockfish-ai.js)  
+    updateLastMoveInfo(); // Actualizar información del último movimiento  
+    updateMoveHistory(); // Actualizar historial de movimientos  
+    updateStats(); // Actualizar estadísticas rápidas  
+  
+    if (game.game_over()) {  
+        showGameOver(); // Mostrar mensaje de fin de partida  
+    }  
 }  
   
-async function updateEvalBar() { // Convertido a async para usar currentStockfishScore  
-    // currentStockfishScore ya se actualiza en makeAIMove y handleSquareClick  
-    const score = currentStockfishScore;  
+/**  
+ * Actualiza visualmente la barra de evaluación vertical y el score numérico.  
+ * Esta función es llamada por `window.updateEvaluationDisplay()` (en `stockfish-ai.js`).  
+ * @param {number} score - El score de Stockfish actual de la posición.  
+ */  
+function updateEvalBar(score) {  
     const prob = calculateWinProbability(score);  
   
-    // Ajustar el porcentaje de la barra de evaluación  
-    // El score de Stockfish es en centipeones. Un score de +200 significa +2 peones.  
-    // Necesitamos mapear esto a un porcentaje de 0 a 100.  
-    // Un rango de -10 a +10 peones (1000 centipeones) es un buen punto de partida.  
-    const maxScore = 1000; // Equivalente a 10 peones  
-    let percentage = 50 + (score / (maxScore * 2)) * 100; // Divide por 2 porque el rango total es 2*maxScore  
-    percentage = Math.min(100, Math.max(0, percentage)); // Asegura que esté entre 0 y 100  
+    // Mapear el score a un porcentaje para la altura de la barra.  
+    // Un score de 1000 (10 peones) se considera una ventaja muy grande.  
+    const maxScore = 1000;  
+    let percentage = 50 + (score / (maxScore * 2)) * 100; // Normalizar a un rango de 0-100%  
+    percentage = Math.min(100, Math.max(0, percentage)); // Asegurarse de que esté entre 0 y 100  
   
     const fillEl = document.getElementById('evalBarFill');  
-    fillEl.style.height = percentage + '%';  
-    fillEl.textContent = Math.abs(score).toFixed(1); // Muestra el valor absoluto de la puntuación en peones  
-  
-    // Ajustar el color de la barra  
-    fillEl.className = 'eval-bar-fill';  
-    if (score > 50) { // +0.5 peones, ventaja blanca  
-        fillEl.classList.add('white-advantage');  
-    } else if (score < -50) { // -0.5 peones, ventaja negra  
-        fillEl.classList.add('black-advantage');  
+    if(fillEl) {  
+        fillEl.style.height = percentage + '%';  
+        fillEl.textContent = Math.abs(score).toFixed(1); // Muestra el valor absoluto de la puntuación en peones  
+        fillEl.className = 'eval-bar-fill'; // Resetear clases  
+        if (score > 50) { // Ventaja de blancas (+0.5 peones)  
+            fillEl.classList.add('white-advantage');  
+        } else if (score < -50) { // Ventaja de negras (-0.5 peones)  
+            fillEl.classList.add('black-advantage');  
+        }  
+    } else {  
+        console.warn("Elemento 'evalBarFill' no encontrado.");  
+    }  
+      
+    const evalScoreEl = document.getElementById('evalScore');  
+    if(evalScoreEl) {  
+        evalScoreEl.textContent = score.toFixed(2);  
+    } else {  
+        console.warn("Elemento 'evalScore' no encontrado.");  
     }  
   
-    document.getElementById('evalScore').textContent = score.toFixed(2);  
-    document.getElementById('winProb').innerHTML = `B:${prob.white}% N:${prob.black}%`;  
+    const winProbEl = document.getElementById('winProb');  
+    if(winProbEl) {  
+        winProbEl.innerHTML = `B:${prob.white}% N:${prob.black}%`;  
+    } else {  
+        console.warn("Elemento 'winProb' no encontrado.");  
+    }  
 }  
   
-  
-// ... (El resto de funciones como updateLastMoveInfo, updateMoveHistory, updateStats, showGameOver  
-// permanecen igual, o solo necesitas que makeAIMove sea async como ya lo hicimos en stockfish-ai.js)  
-  
+/**  
+ * Actualiza la información del último movimiento del jugador.  
+ */  
 function updateLastMoveInfo() {  
     const el = document.getElementById('lastMoveInfo');  
-    if (moveCount === 0) { el.style.display = 'none'; return; }  
+    if (!el) {  
+        console.warn("Elemento 'lastMoveInfo' no encontrado.");  
+        return;  
+    }  
+  
+    if (moveCount === 0) {  
+        el.style.display = 'none';  
+        return;  
+    }  
+  
     el.style.display = 'grid';  
     const history = game.history({ verbose: true });  
     const lastMove = history[history.length - 1];  
-    document.getElementById('playerLastMove').textContent = lastMove?.san || '-';  
-    // Muestra la evaluación de Stockfish, no tu evaluación local  
-    document.getElementById('moveEval').textContent = currentStockfishScore.toFixed(2);  
+      
+    const playerLastMoveEl = document.getElementById('playerLastMove');  
+    if (playerLastMoveEl) {  
+        playerLastMoveEl.textContent = lastMove?.san || '-';  
+    } else {  
+        console.warn("Elemento 'playerLastMove' no encontrado.");  
+    }  
+  
+    const moveEvalEl = document.getElementById('moveEval');  
+    if (moveEvalEl) {  
+        moveEvalEl.textContent = currentStockfishScore.toFixed(2);  
+    } else {  
+        console.warn("Elemento 'moveEval' no encontrado.");  
+    }  
+}  
+  
+/**  
+ * Actualiza el historial de movimientos en el panel lateral.  
+ */  
+function updateMoveHistory() {  
+    const historyEl = document.getElementById('moveHistory');  
+    if (!historyEl) {  
+        console.warn("Elemento 'moveHistory' no encontrado.");  
+        return;  
+    }  
+  
+    historyEl.innerHTML = '';  
+    const history = game.history(); // Obtiene los movimientos en notación SAN  
+  
+    if (history.length === 0) {  
+        historyEl.innerHTML = '<p style="color: #888; text-align: center;">Movimientos aquí...</p>';  
+        return;  
+    }  
+  
+    let moveNum = 1;  
+    let turnMoves = '';  
+    for (let i = 0; i < history.length; i++) {  
+        if (i % 2 === 0) { // Movimiento de blancas  
+            if (i > 0) { // Añadir el turno anterior completo  
+                historyEl.innerHTML += `<div class="move-item">${moveNum-1}. ${turnMoves}</div>`;  
+            }  
+            turnMoves = `${history[i]}`;  
+            moveNum++;  
+        } else { // Movimiento de negras  
+            turnMoves += ` ${history[i]}`;  
+        }  
+    }  
+    // Añadir el último turno (siempre habrá uno si history.length > 0)  
+    historyEl.innerHTML += `<div class="move-item">${moveNum-1}. ${turnMoves}</div>`;  
+      
+    // Scroll automático al final del historial  
+    historyEl.scrollTop = historyEl.scrollHeight;  
+}  
+  
+/**  
+ * Actualiza las estadísticas rápidas del juego.  
+ */  
+function updateStats() {  
+    const moveCountEl = document.getElementById('moveCount');  
+    if (moveCountEl) moveCountEl.textContent = moveCount;  
+  
+    // Los cálculos de precisión, buenos/malos movimientos son simplistas y requieren más lógica  
+    // document.getElementById('accuracy').textContent = (goodMoves / (moveCount || 1) * 100).toFixed(0) + '%';  
+    // document.getElementById('goodMoves').textContent = goodMoves;  
+    // document.getElementById('badMoves').textContent = badMoves;  
+  
+    // Actualizar las estadísticas persistentes (si se implementan)  
+    const totalGamesEl = document.getElementById('totalGames');  
+    if (totalGamesEl) totalGamesEl.textContent = stats.totalGames;  
+    const maxEloEl = document.getElementById('maxElo');  
+    if (maxEloEl) maxEloEl.textContent = stats.maxElo;  
+    const currentEloEl = document.getElementById('currentElo');  
+    if (currentEloEl) currentEloEl.textContent = playerElo;  
+    const sessionsEl = document.getElementById('sessions');  
+    if (sessionsEl) sessionsEl.textContent = stats.sessions;  
+}  
+  
+/**  
+ * Muestra el mensaje de Game Over cuando la partida finaliza.  
+ */  
+function showGameOver() {  
+    let message = '';  
+    if (game.in_checkmate()) {  
+        message = `¡Jaque Mate! ${game.turn() === 'w' ? 'Negras' : 'Blancas'} ganan.`;  
+    } else if (game.in_draw()) {  
+        message = "¡Tablas!";  
+    } else if (game.in_stalemate()) {  
+        message = "¡Ahogado! Tablas.";  
+    } else if (game.in_threefold_repetition()) {  
+        message = "¡Tablas por triple repetición!";  
+    } else if (game.insufficient_material()) {  
+        message = "¡Tablas por material insuficiente!";  
+    }  
+    const coachMsg = document.getElementById('coachMessage');  
+    if (coachMsg) {  
+        coachMsg.innerHTML = `<strong>Game Over!</strong> ${message}`;  
+        coachMsg.classList.add('good'); // Podría ser una clase 'game-over'  
+    }  
 }  
   
   
-// ===================== CONTROLES =====================  
-async function resetGame() { // Convertido a async  
-    game.reset();  
+// ===================== CONTROLES DEL JUEGO =====================  
+  
+/**  
+ * Reinicia el juego a la posición inicial.  
+ */  
+async function resetGame() {  
+    game.reset(); // Restablecer el estado del juego  
     selectedSquare = null;  
     highlights = [];  
     lastFromSquare = null;  
@@ -326,119 +531,170 @@ async function resetGame() { // Convertido a async
     moveCount = 0;  
     goodMoves = 0;  
     badMoves = 0;  
+    boardFlipped = false; // Asegurarse de que el tablero no esté girado al reiniciar  
     aiThinking = false;  
-    currentStockfishScore = 0; // Resetear la evaluación de Stockfish  
+    currentStockfishScore = 0; // Reiniciar la evaluación de Stockfish  
   
-    document.getElementById('coachMessage').innerHTML = '<strong>¡Bienvenido!</strong> Realiza tu primer movimiento.';  
-    document.getElementById('coachMessage').classList.remove('good', 'bad'); // Limpia estilos  
-    document.getElementById('lastMoveInfo').style.display = 'none';  
+    const coachMsg = document.getElementById('coachMessage');  
+    if (coachMsg) {  
+        coachMsg.innerHTML = '<strong>¡Bienvenido!</strong> Realiza tu primer movimiento.';  
+        coachMsg.classList.remove('good', 'bad'); // Limpiar estilos  
+    }  
+    const lastMoveInfoEl = document.getElementById('lastMoveInfo');  
+    if (lastMoveInfoEl) lastMoveInfoEl.style.display = 'none';  
   
-    await updateGameEvaluation(); // Obtener la evaluación inicial del tablero  
-    updateUI();  
+    await window.updateEvaluationDisplay(); // Actualizar la evaluación para la posición inicial  
+    updateUI(); // Actualizar toda la interfaz  
 }  
   
-async function undoMove() { // Convertido a async  
-    if (aiThinking) return;  
-    game.undo(); // Deshace el movimiento de la IA  
-    game.undo(); // Deshace el movimiento del jugador  
-    moveCount = Math.max(0, moveCount - 2);  
-    await updateGameEvaluation(); // Re-evaluar la posición después de deshacer  
-    updateUI();  
+/**  
+ * Deshace los últimos movimientos (del jugador y de la IA si aplica).  
+ */  
+async function undoMove() {  
+    if (aiThinking) return; // No deshacer si la IA está pensando  
+  
+    game.undo(); // Deshace el último movimiento (del jugador)  
+    if (game.history().length > 0) { // Si hay movimientos previos, deshacer también el de la IA  
+        game.undo();  
+    }  
+    moveCount = game.history().length; // Sincronizar moveCount con el historial real  
+  
+    await window.updateEvaluationDisplay(); // Re-evaluar la posición después de deshacer  
+    updateUI(); // Actualizar toda la interfaz  
 }  
   
-// ... (flipBoard permanece igual)  
+/**  
+ * Gira el tablero para cambiar la perspectiva del jugador.  
+ */  
 function flipBoard() {  
     boardFlipped = !boardFlipped;  
-    renderBoard();  
+    renderBoard(); // Redibujar el tablero con la nueva orientación  
 }  
   
-  
-async function requestHint() { // Convertido a async  
+/**  
+ * Solicita una pista a Stockfish para el mejor movimiento en la posición actual.  
+ */  
+async function requestHint() {  
     if (game.game_over() || aiThinking) return;  
   
-    if (!engineReady) {  
+    // Verificar si Stockfish está disponible  
+    if (!window.engineReady) {  
         giveCoachFeedback('hint', "Stockfish no está cargado. No puedo dar una pista precisa.");  
         return;  
     }  
   
     giveCoachFeedback('hint', 'Pensando en la mejor pista... <span class="loading"></span>');  
-    aiThinking = true; // Para evitar clicks duplicados mientras Stockfish piensa  
+    aiThinking = true; // Establecer bandera para evitar clics duplicados  
   
-    const hintDepth = parseInt(document.getElementById('difficulty').value) * 3; // Pista con profundidad decente  
-    const result = await evaluateWithStockfish(hintDepth);  
+    // Determinar la profundidad de la pista basada en la dificultad seleccionada  
+    const difficultyElem = document.getElementById('difficulty');  
+    const difficulty = difficultyElem ? parseInt(difficultyElem.value) : 3;  
+    const hintDepth = difficulty * 3 + 6; // Por ejemplo, 9 para novato, 21 para maestro  
+    const hintTimeout = 5000; // Timeout de 5 segundos para la pista  
   
-    aiThinking = false;  
+    // Solicitar el mejor movimiento a Stockfish  
+    const result = await window.evaluateWithStockfish(hintDepth, hintTimeout);  
+  
+    aiThinking = false; // La IA ha terminado de pensar para la pista  
   
     if (result.bestMove) {  
         const from = result.bestMove.substring(0, 2);  
         const to = result.bestMove.substring(2, 4);  
-        selectedSquare = from;  
-        highlights = [to];  
-        renderBoard();  
-        giveCoachFeedback('hint', `Considera mover ${from}-${to}.`);  
+        selectedSquare = from; // Seleccionar el cuadrado de origen de la pista  
+        highlights = [to]; // Resaltar el cuadrado de destino de la pista  
+        renderBoard(); // Redibujar el tablero para mostrar la pista visualmente  
+        // Mostrar la pista con el movimiento y la Variante Principal  
+        giveCoachFeedback('hint', `Considera mover ${from}-${to}. PV: ${result.pv.join(' ')}`);  
     } else {  
         giveCoachFeedback('hint', "No pude encontrar una buena pista. ¿Hay un error?");  
     }  
 }  
   
+/**  
+ * Abre el modal de análisis detallado.  
+ */  
+async function analysisMode() {  
+    const analysisModal = document.getElementById('analysisModal');  
+    if (analysisModal) analysisModal.classList.add('active');  
   
-async function analysisMode() { // Convertido a async  
-    document.getElementById('analysisModal').classList.add('active');  
-    document.getElementById('analysisLoading').style.display = 'inline-block';  
-    document.getElementById('analysisStatus').textContent = 'Analizando posición...';  
+    const analysisLoading = document.getElementById('analysisLoading');  
+    if (analysisLoading) analysisLoading.style.display = 'inline-block';  
+    const analysisStatus = document.getElementById('analysisStatus');  
+    if (analysisStatus) analysisStatus.textContent = 'Analizando posición...';  
+  
     await performAnalysis(); // Esperar a que el análisis se complete  
 }  
   
+/**  
+ * Cierra el modal de análisis detallado.  
+ */  
 function closeAnalysis() {  
-    document.getElementById('analysisModal').classList.remove('active');  
+    const analysisModal = document.getElementById('analysisModal');  
+    if (analysisModal) analysisModal.classList.remove('active');  
 }  
   
-async function performAnalysis() { // Convertido a async  
-    if (!engineReady) {  
-        document.getElementById('analysisStatus').textContent = '⚠️ Stockfish no está disponible para análisis detallado.';  
-        document.getElementById('analysisLoading').style.display = 'none';  
-        // Rellenar con los valores locales si es necesario  
+/**  
+ * Realiza un análisis profundo de la posición actual y muestra los resultados en el modal.  
+ */  
+async function performAnalysis() {  
+    // Verificar si Stockfish está disponible  
+    if (!window.engineReady) {  
+        const analysisStatus = document.getElementById('analysisStatus');  
+        if (analysisStatus) analysisStatus.textContent = '⚠️ Stockfish no está disponible para análisis detallado.';  
+        const analysisLoading = document.getElementById('analysisLoading');  
+        if (analysisLoading) analysisLoading.style.display = 'none';  
+          
+        // --- Fallback a evaluación local si Stockfish no está disponible ---  
         const localScore = _internalEvaluatePosition();  
         const localProb = calculateWinProbability(localScore);  
+  
+        // Actualizar elementos del modal con valores locales/predefinidos  
         document.getElementById('currentScore').innerHTML = localScore.toFixed(2);  
         document.getElementById('whiteWinProb').innerHTML = localProb.white + '%';  
         document.getElementById('drawProb').innerHTML = localProb.draw + '%';  
         document.getElementById('blackWinProb').innerHTML = localProb.black + '%';  
         document.getElementById('anyWinProb').innerHTML = localProb.decisive + '%';  
-        document.getElementById('bestMoveAnalysis').innerHTML = '-'; // No podemos saber sin Stockfish  
+        document.getElementById('bestMoveAnalysis').innerHTML = '-';  
         document.getElementById('analysisDepth').innerHTML = 'N/A';  
-        document.getElementById('principalVariation').innerHTML = '-';  
+        document.getElementById('principalVariation').innerHTML = 'N/A (Stockfish no disponible)';  
         document.getElementById('openingEval').innerHTML = '-';  
         document.getElementById('middlegameEval').innerHTML = '-';  
         document.getElementById('endgameEval').innerHTML = '-';  
-        document.getElementById('materialEval').innerHTML = _internalEvaluatePosition().toFixed(2); // Usar la local  
+        document.getElementById('materialEval').innerHTML = _internalEvaluatePosition().toFixed(2);  
         return;  
     }  
   
-    document.getElementById('analysisStatus').textContent = 'Analizando posición...';  
-    document.getElementById('analysisLoading').style.display = 'inline-block';  
+    const analysisStatus = document.getElementById('analysisStatus');  
+    if (analysisStatus) analysisStatus.textContent = 'Analizando posición...';  
+    const analysisLoading = document.getElementById('analysisLoading');  
+    if (analysisLoading) analysisLoading.style.display = 'inline-block';  
   
-    const analysisDepth = 24; // Una profundidad alta para análisis detallado  
-    const result = await evaluateWithStockfish(analysisDepth);  
+    const analysisDepth = 24; // Profundidad alta para un análisis detallado  
+    const analysisTimeout = 15000; // Timeout generoso (15 segundos) para este análisis profundo  
+    const result = await window.evaluateWithStockfish(analysisDepth, analysisTimeout); // Llamada a stockfish-ai.js  
   
     const score = result.score;  
-    const prob = calculateWinProbability(score); // Usar la función ajustada para scores de Stockfish  
+    const prob = calculateWinProbability(score); // Probabilidades basadas en el score de Stockfish  
     const bestMoveUci = result.bestMove;  
     let bestMoveSan = '-';  
   
+    // Convertir el mejor movimiento UCI a notación SAN para mostrarlo  
     if (bestMoveUci) {  
-        // Convertir UCI a SAN para mostrar en la UI  
+        // Usamos una instancia temporal de Chess.js para esta conversión sin alterar el juego principal  
+        const tempGameForSan = new Chess(game.fen());  
         const from = bestMoveUci.substring(0, 2);  
         const to = bestMoveUci.substring(2, 4);  
-        const promotion = bestMoveUci.length > 4 ? bestMoveUci[4] : '';  
-        const tempMove = game.move({ from, to, promotion });  
+        const promotion = bestMoveUci.length > 4 ? bestMoveUci[4].toLowerCase() : undefined;  
+        const tempMove = tempGameForSan.move({ from, to, promotion });  
         if (tempMove) {  
             bestMoveSan = tempMove.san;  
-            game.undo(); // Deshacer el movimiento temporal  
+        } else {  
+            console.warn("No se pudo convertir el bestMove UCI a SAN:", bestMoveUci);  
+            bestMoveSan = bestMoveUci; // Si falla la conversión, mostrar el UCI directamente  
         }  
     }  
   
-  
+    // --- Actualizar elementos del modal con los resultados del análisis ---  
     document.getElementById('whiteWinProb').innerHTML = prob.white + '%';  
     document.getElementById('drawProb').innerHTML = prob.draw + '%';  
     document.getElementById('blackWinProb').innerHTML = prob.black + '%';  
@@ -447,18 +703,21 @@ async function performAnalysis() { // Convertido a async
     document.getElementById('bestMoveAnalysis').innerHTML = bestMoveSan;  
     document.getElementById('analysisDepth').innerHTML = result.depth + ' movimientos';  
   
-    // Para la variante principal, necesitaríamos que Stockfish nos la envíe.  
-    // El `evaluateWithStockfish` actual no la extrae de los mensajes `info`.  
-    // Si quieres la PV, tendrías que modificar `evaluateWithStockfish` para parsear  
-    // mensajes como 'info depth X seldepth Y multipv 1 score cp Z nodes A nps B tbhits C time D pv e2e4 e7e5 ...'  
-    // Por ahora, lo dejamos simple.  
-    document.getElementById('principalVariation').innerHTML = 'Análisis de PV no implementado aún.';  
+    // MOSTRAR LA VARIANTE PRINCIPAL (PV)  
+    const principalVariationEl = document.getElementById('principalVariation');  
+    if (principalVariationEl) {  
+        if (result.pv && result.pv.length > 0) {  
+            // Unir los movimientos UCI de la PV con espacios  
+            principalVariationEl.innerHTML = result.pv.join(' ');  
+        } else {  
+            principalVariationEl.innerHTML = 'No se encontró variante principal.';  
+        }  
+    } else {  
+        console.warn("Elemento 'principalVariation' no encontrado.");  
+    }  
   
-    // Evaluación por fases del juego y material: Stockfish lo hace internamente.  
-    // Nuestro wrapper solo devuelve el score total. Obtener scores específicos por fase  
-    // o material directamente de Stockfish requeriría una integración más profunda o  
-    // el uso de un Stockfish compilado con funcionalidades especiales.  
-    // Por ahora, estos los dejaremos como marcadores de posición o usaremos tu lógica anterior.  
+    // Evaluación por fases del juego y material  
+    // Esto se hace con lógica local ya que Stockfish solo devuelve el score total por defecto  
     const board = game.board();  
     let material = 0;  
     const pieceValues = { 'p': 1, 'n': 3, 'b': 3.25, 'r': 5, 'q': 9 };  
@@ -470,14 +729,32 @@ async function performAnalysis() { // Convertido a async
         }  
     }  
     const history = game.history({ verbose: true });  
+    // Heurística simple para determinar la fase del juego  
     const phase = history.length < 10 ? 'Apertura' : history.length < 40 ? 'Medio Juego' : 'Final';  
   
     document.getElementById('materialEval').innerHTML = material.toFixed(2);  
+    // Para la evaluación por fase, se muestra el score total de Stockfish,  
+    // ya que no tenemos scores específicos por fase directamente de Stockfish.  
     document.getElementById('openingEval').innerHTML = phase === 'Apertura' ? score.toFixed(2) : '-';  
     document.getElementById('middlegameEval').innerHTML = phase === 'Medio Juego' ? score.toFixed(2) : '-';  
     document.getElementById('endgameEval').innerHTML = phase === 'Final' ? score.toFixed(2) : '-';  
   
-  
-    document.getElementById('analysisStatus').textContent = '✅ Análisis completado';  
-    document.getElementById('analysisLoading').style.display = 'none';  
+    // Finalizar el estado de carga  
+    if (analysisStatus) analysisStatus.textContent = '✅ Análisis completado';  
+    if (analysisLoading) analysisLoading.style.display = 'none';  
 }  
+  
+  
+// ===================== EXPORTAR GLOBALES =====================  
+// Asignamos variables y funciones al objeto `window` para que sean accesibles  
+// desde otros scripts o el HTML directamente, ya que no estamos usando módulos ES6.  
+window.game = game;  
+window.updateEvalBar = updateEvalBar; // Necesario para que stockfish-ai.js pueda llamarla  
+window.renderBoard = renderBoard; // Puede que se necesite en index.html  
+window.updateUI = updateUI; // La función principal para refrescar la interfaz  
+window.resetGame = resetGame;  
+window.undoMove = undoMove;  
+window.flipBoard = flipBoard;  
+window.requestHint = requestHint;  
+window.analysisMode = analysisMode;  
+window.closeAnalysis = closeAnalysis;  
