@@ -25,32 +25,6 @@ const coachPhrases = {
     blunder: ["¡Error grave!", "Pierdes ventaja importante.", "¡Cuidado, este movimiento es malo!"]
 };
 
-// ===================== EVALUACIÓN DE POSICIÓN =====================
-function evaluatePosition() {
-    const board = game.board();
-    let score = 0;
-    const pieceValues = { 'p': 1, 'n': 3, 'b': 3.25, 'r': 5, 'q': 9, 'k': 0 };
-    
-    // Material
-    for (let i = 0; i < 8; i++) {
-        for (let j = 0; j < 8; j++) {
-            const piece = board[i][j];
-            if (!piece) continue;
-            const val = pieceValues[piece.type] || 0;
-            if (piece.color === 'w') {
-                score += val;
-            } else {
-                score -= val;
-            }
-        }
-    }
-
-    // Movilidad
-    const moves = game.moves();
-    score += moves.length * 0.05;
-
-    return score;
-}
 
 function calculateWinProbability() {
     const eval_score = evaluatePosition();
