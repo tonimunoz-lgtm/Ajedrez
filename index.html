@@ -739,25 +739,33 @@
         </div>  
     </div>  
   
-    <!-- CARGA DE SCRIPTS - ¡ORDEN IMPORTA! -->  
-    <!-- 1. Bibliotecas de terceros (Chess.js) -->  
-    <!-- 2. Archivo del motor Stockfish (stockfish.js) -->  
-    <!-- 3. Tu lógica de IA que usa Stockfish (stockfish-ai.js) -->  
-    <!-- 4. Tu lógica principal del juego (game.js) -->  
-    <!-- 5. Tu script de inicialización DOM -->  
-  
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/chess.js/0.10.3/chess.min.js"></script>  
-    <script src="js/stockfish.js"></script>  <!-- ¡Este es el que faltaba! -->  
-    <script src="js/stockfish-ai.js"></script>    
-    <script src="js/game.js"></script>    
+    <!-- CARGA DE SCRIPTS - ¡ORDEN IMPORTA! -->    
+    <!-- 1. Bibliotecas de terceros (Chess.js) -->    
+    <!-- 2. Archivo del motor Stockfish (stockfish.js) -->    
+    <!-- 3. Tu lógica de IA que usa Stockfish (stockfish-ai.js) -->    
+    <!-- 4. Tu lógica principal del juego (game.js) -->    
+    <!-- 5. Tu script de inicialización DOM -->    
+    
+    <!-- 1. Carga de Chess.js desde CDN -->  
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/chess.js/0.10.3/chess.min.js"></script>    
       
-    <script>    
-        document.addEventListener('DOMContentLoaded', async () => {  
-            // Asegúrate de que initializeStockfishEngine y renderBoard se ejecuten antes que updateUI  
-            await initializeStockfishEngine(); // Inicializa Stockfish (de stockfish-ai.js)  
-            renderBoard();                     // Renderiza el tablero (de game.js)  
-            await updateUI();                  // Actualiza la UI, que ahora incluye la primera evaluación de Stockfish (de game.js, llama a stockfish-ai.js)  
-        });      
-    </script>      
-</body>      
-</html>  
+    <!-- 2. Carga del archivo local de Stockfish -->  
+    <script src="js/stockfish.js"></script>    
+      
+    <!-- 3. Tu lógica de IA que usa Stockfish -->  
+    <script src="js/stockfish-ai.js"></script>      
+      
+    <!-- 4. Tu lógica principal del juego -->  
+    <script src="js/game.js"></script>      
+        
+    <!-- 5. Tu script de inicialización DOM (que está dentro de tu HTML) -->  
+    <script>      
+        document.addEventListener('DOMContentLoaded', async () => {    
+            // Asegúrate de que initializeStockfishEngine y renderBoard se ejecuten antes que updateUI    
+            await initializeStockfishEngine(); // Inicializa Stockfish (de stockfish-ai.js)    
+            renderBoard();                     // Renderiza el tablero (de game.js)    
+            await updateUI();                  // Actualiza la UI, que ahora incluye la primera evaluación de Stockfish (de game.js, llama a stockfish-ai.js)    
+        });        
+    </script>        
+</body>        
+</html>
