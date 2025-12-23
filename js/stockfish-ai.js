@@ -1,5 +1,4 @@
 // ===================== STOCKFISH AI OPTIMIZADO =====================
-
 let stockfish = null;
 let stockfishReady = false;
 let stockfishQueue = [];
