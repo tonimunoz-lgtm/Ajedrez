@@ -1,5 +1,4 @@
 // ===================== VARIABLES GLOBALES =====================
-
 const game = new Chess();
 let selectedSquare = null;
 let highlights = [];
