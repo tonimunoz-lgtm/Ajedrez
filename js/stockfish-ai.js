@@ -3,7 +3,9 @@
 let stockfish = null;
 let stockfishReady = false;
 let stockfishQueue = [];
+let currentEval = 0;    // Evaluación actual en centipawns
 let currentBestMove = null;
+let currentDepth = 0;
 
 // Inicializa Stockfish
 function initStockfish() {
@@ -17,6 +19,20 @@ function initStockfish() {
             stockfishReady = true;
         }
 
+        // Leer evaluación de posición
+        if (line.startsWith('info depth')) {
+            const scoreMatch = line.match(/score (cp|mate) (-?\d+)/);
+            if (scoreMatch) {
+                const type = scoreMatch[1];
+                const val = parseInt(scoreMatch[2]);
+                if (type === 'cp') currentEval = val / 100;          // centipawns a unidades de peón
+                if (type === 'mate') currentEval = val > 0 ? 1000 : -1000; // mates muy grandes
+            }
+            const depthMatch = line.match(/depth (\d+)/);
+            if (depthMatch) currentDepth = parseInt(depthMatch[1]);
+        }
+
+        // Mejor movimiento
         if (line.startsWith('bestmove')) {
             const parts = line.split(' ');
             const bestMove = parts[1];
@@ -24,7 +40,7 @@ function initStockfish() {
 
             if (stockfishQueue.length > 0) {
                 const callback = stockfishQueue.shift();
-                callback(bestMove);
+                callback(bestMove, currentEval, currentDepth);
             }
         }
     };
@@ -52,7 +68,9 @@ function makeAIMove() {
     const difficulty = parseInt(document.getElementById('difficulty').value);
     const depth = 10 + difficulty * 2; // Ajusta profundidad según nivel
 
-    getBestMove(fen, depth, (bestMove) => {
+    aiThinking = true;
+
+    getBestMove(fen, depth, (bestMove, evalScore, depth) => {
         if (!bestMove || bestMove === '(none)') {
             aiThinking = false;
             return;
@@ -63,10 +81,34 @@ function makeAIMove() {
             lastFromSquare = move.from;
             lastToSquare = move.to;
             moveCount++;
+            lastEval = evalScore; // Actualiza evaluación real
             evaluateMoveQuality(move);
         }
 
         aiThinking = false;
         updateUI();
     });
+}
+
+// ===================== FUNCIONES DE EVALUACIÓN =====================
+
+// Devuelve la evaluación actual de la posición según Stockfish
+function evaluatePosition() {
+    return currentEval;  // ya está en unidades de peón
+}
+
+// Devuelve las probabilidades de victoria basadas en la evaluación de Stockfish
+function calculateWinProbability() {
+    const score = currentEval;
+    const sigmoid = (x) => 1 / (1 + Math.exp(-x / 1.5)); // ajustar escala
+    const whiteWin = sigmoid(score) * 0.85;
+    const blackWin = sigmoid(-score) * 0.85;
+    const draw = 1 - whiteWin - blackWin;
+
+    return {
+        white: Math.round(whiteWin * 100),
+        black: Math.round(blackWin * 100),
+        draw: Math.round(draw * 100),
+        decisive: Math.round((whiteWin + blackWin) * 100)
+    };
 }
