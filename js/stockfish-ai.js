@@ -1,159 +1,122 @@
 // ===================== STOCKFISH - MOTOR REAL DESDE CDN =====================
 let engine = null;
 let engineReady = false;
+let pendingResolve = null;
+let pendingBestMove = null;
 
+// Inicializa Stockfish desde CDN
 async function initStockfish() {
     try {
         console.log('Cargando Stockfish desde CDN...');
-        
-        // Cargar el script de Stockfish desde jsdelivr (funciona garantizado)
+
         const script = document.createElement('script');
         script.src = 'https://cdn.jsdelivr.net/npm/stockfish@16.1.0/src/stockfish.js';
-        
-        script.onload = async () => {
+
+        script.onload = () => {
             console.log('Script Stockfish cargado');
-            
-            // Esperar a que Stockfish esté disponible
-            let attempts = 0;
-            const waitForStockfish = setInterval(() => {
-                if (typeof Stockfish !== 'undefined') {
-                    clearInterval(waitForStockfish);
-                    
-                    // Inicializar Stockfish
-                    engine = Stockfish();
-                    engineReady = true;
-                    
-                    console.log('✅ Stockfish REAL cargado y funcionando');
-                    document.getElementById('coachMessage').innerHTML = '<strong>✅ Stockfish Real</strong> Motor profesional Elo 3500+ activado.';
-                } else {
-                    attempts++;
-                    if (attempts > 50) {
-                        clearInterval(waitForStockfish);
-                        fallbackMode();
-                    }
-                }
-            }, 100);
+            engine = Stockfish();
+            setupEngine();
         };
-        
+
         script.onerror = () => {
-            console.error('Error cargando script de Stockfish desde CDN');
+            console.error('Error cargando Stockfish desde CDN');
             fallbackMode();
         };
-        
+
         document.head.appendChild(script);
-        
-        // Timeout: si en 5 segundos no carga, usar fallback
+
+        // Timeout de 5 segundos
         setTimeout(() => {
-            if (!engineReady) {
-                fallbackMode();
-            }
+            if (!engineReady) fallbackMode();
         }, 5000);
-        
     } catch (e) {
         console.error('Error en initStockfish:', e);
         fallbackMode();
     }
 }
 
+// Configuración del motor y protocolo UCI
+function setupEngine() {
+    engine.onmessage = (event) => {
+        const msg = event.data || event;
+        if (!msg) return;
+
+        // Motor listo
+        if (msg === 'uciok') {
+            engine.postMessage('isready');
+        }
+
+        if (msg === 'readyok') {
+            engineReady = true;
+            console.log('✅ Stockfish listo y operativo');
+            document.getElementById('coachMessage').innerHTML =
+                '<strong>✅ Stockfish Real</strong> Motor profesional Elo 3500+ activado.';
+        }
+
+        // Procesar evaluaciones
+        if (pendingResolve && msg.includes('bestmove')) {
+            const match = msg.match(/bestmove (\S+)/);
+            if (match) {
+                const best = match[1];
+                pendingResolve(best);
+                pendingResolve = null;
+            }
+        }
+    };
+
+    // Inicializar motor
+    engine.postMessage('uci');
+    engine.postMessage('setoption name Threads value 4');
+    engine.postMessage('setoption name Hash value 128');
+}
+
+// Fallback local si Stockfish no carga
 function fallbackMode() {
     engineReady = false;
     console.warn('⚠️ Stockfish no disponible, usando análisis local');
-    document.getElementById('coachMessage').innerHTML = '<strong>⚠️ Análisis Local</strong> Stockfish no disponible, usando evaluación local.';
+    document.getElementById('coachMessage').innerHTML =
+        '<strong>⚠️ Análisis Local</strong> Stockfish no disponible, usando evaluación local.';
 }
 
-// ===================== EVALUAR CON STOCKFISH REAL =====================
+// Evalúa la posición y devuelve la mejor jugada de Stockfish
 function evaluateWithStockfish(depth = 20) {
-    return new Promise((resolve) => {
+    return new Promise(async (resolve) => {
         if (!engineReady || !engine) {
-            // Fallback si Stockfish no está disponible
-            resolve({ score: 0, bestMove: null, depth: 0 });
+            resolve(null);
             return;
         }
 
-        let bestMove = null;
-        let score = 0;
-        let depthReached = 0;
-        let isResolved = false;
-
-        const timeout = setTimeout(() => {
-            if (!isResolved) {
-                isResolved = true;
-                console.warn('Timeout en evaluación de Stockfish');
-                resolve({ score, bestMove, depth: depthReached });
-            }
-        }, 2500);
-
-        const onMessage = (message) => {
-            if (isResolved) return;
-
-            try {
-                // Mensaje de Stockfish: "bestmove e2e4 ponder e7e5"
-                if (message.includes('bestmove')) {
-                    isResolved = true;
-                    clearTimeout(timeout);
-                    const match = message.match(/bestmove (\S+)/);
-                    if (match) bestMove = match[1];
-                    console.log('Stockfish encontró:', bestMove, 'Evaluación:', score);
-                    resolve({ score, bestMove, depth: depthReached });
-                }
-
-                // Extraer puntuación centipawns: "info depth 20 score cp 45"
-                if (message.includes('score cp')) {
-                    const m = message.match(/score cp (-?\d+)/);
-                    if (m) score = parseInt(m[1]) / 100;
-                }
-
-                // Profundidad alcanzada
-                if (message.includes('depth')) {
-                    const m = message.match(/depth (\d+)/);
-                    if (m) depthReached = parseInt(m[1]);
-                }
-            } catch (e) {
-                console.error('Error procesando mensaje de Stockfish:', e);
-            }
-        };
-
-        try {
-            engine.onmessage = onMessage;
-            engine.postMessage('position fen ' + game.fen());
-            engine.postMessage('go depth ' + depth);
-        } catch (e) {
-            console.error('Error enviando comandos a Stockfish:', e);
-            if (!isResolved) {
-                isResolved = true;
-                clearTimeout(timeout);
-                resolve({ score: 0, bestMove: null, depth: 0 });
-            }
-        }
+        pendingResolve = resolve;
+        engine.postMessage('position fen ' + game.fen());
+        engine.postMessage('go depth ' + depth);
     });
 }
 
-// ===================== OBTENER MEJOR MOVIMIENTO (SIN RANDOM) =====================
+// Obtiene el mejor movimiento y lo convierte a formato chess.js
 async function getBestMoveStockfish(depth = 20) {
-    const result = await evaluateWithStockfish(depth);
-    
-    if (!result.bestMove) {
-        // Fallback: obtener un movimiento legal aleatorio
+    const bestMoveStr = await evaluateWithStockfish(depth);
+
+    if (!bestMoveStr) {
+        // Fallback a movimiento legal aleatorio
         const moves = game.moves({ verbose: true });
         return moves.length > 0 ? moves[0] : null;
     }
 
-    // Convertir notación Stockfish (e.g., "e2e4") a objeto chess.js
-    const from = result.bestMove.substring(0, 2);
-    const to = result.bestMove.substring(2, 4);
-    const promotion = result.bestMove.length > 4 ? result.bestMove[4] : undefined;
-    
+    const from = bestMoveStr.substring(0, 2);
+    const to = bestMoveStr.substring(2, 4);
+    const promotion = bestMoveStr.length > 4 ? bestMoveStr[4] : undefined;
+
     try {
         const moveObj = game.move({ from, to, promotion });
         if (moveObj) {
-            game.undo();
+            game.undo(); // Solo predecimos, no aplicamos todavía
             return moveObj;
         }
     } catch (e) {
         console.error('Error procesando movimiento de Stockfish:', e);
     }
-    
-    // Fallback final
+
+    // Último fallback
     const moves = game.moves({ verbose: true });
     return moves.length > 0 ? moves[0] : null;
 }
@@ -166,8 +129,8 @@ async function makeAIMove() {
     }
 
     const difficulty = parseInt(document.getElementById('difficulty').value);
-    
-    // Profundidades según dificultad (REAL Stockfish)
+
+    // Profundidad según dificultad
     const depthMap = {
         1: 6,   // Novato
         2: 12,  // Intermedio
@@ -177,10 +140,12 @@ async function makeAIMove() {
     };
 
     const depth = depthMap[difficulty] || 18;
-    
+
+    aiThinking = true;
     console.log('IA buscando movimiento a profundidad', depth);
+
     const move = await getBestMoveStockfish(depth);
-    
+
     if (move) {
         game.move(move);
         lastFromSquare = move.from;
@@ -194,7 +159,5 @@ async function makeAIMove() {
     updateUI();
     aiThinking = false;
 
-    if (game.game_over()) {
-        showGameOver();
-    }
+    if (game.game_over()) showGameOver();
 }
