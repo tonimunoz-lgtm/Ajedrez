@@ -29,14 +29,17 @@
 
 <script>
   const game = new Chess();
+  let board = null;
 
-  const board = Chessboard('board', {
+  // Inicializamos el tablero
+  board = Chessboard('board', {
     draggable: true,
     position: 'start',
-    onDrop: handleMove
+    onDrop: handleMove,
+    pieceTheme: 'https://chessboardjs.com/img/chesspieces/wikipedia/{piece}.png'
   });
 
-  // Cargar Stockfish
+  // Stockfish en el navegador
   const stockfish = new Worker('https://cdn.jsdelivr.net/gh/niklasf/stockfish.js/stockfish.js');
 
   stockfish.onmessage = function(event) {
@@ -44,21 +47,30 @@
     if (line.startsWith('bestmove')) {
       const move = line.split(' ')[1];
       document.getElementById('bestmove').innerText = move;
+
+      // Si es turno de Stockfish, hacer el movimiento
+      if (game.turn() === 'b') {
+        game.move({ from: move.substring(0,2), to: move.substring(2,4), promotion: 'q' });
+        board.position(game.fen());
+        document.getElementById('advice').innerText = 'Stockfish jugó ' + move;
+      }
     }
   };
 
   function analyzePosition() {
     stockfish.postMessage('position fen ' + game.fen());
-    stockfish.postMessage('go depth 15'); // profundidad 15
+    stockfish.postMessage('go depth 15');
   }
 
   function handleMove(source, target) {
     const move = game.move({ from: source, to: target, promotion: 'q' });
     if (move === null) return 'snapback';
 
+    board.position(game.fen());
     analyzePosition();
 
     setTimeout(() => {
+      // Recomendación de Stockfish para tu movimiento
       stockfish.postMessage('position fen ' + game.fen());
       stockfish.postMessage('go depth 15');
 
@@ -68,10 +80,18 @@
           const bestMove = line.split(' ')[1];
           document.getElementById('bestmove').innerText = bestMove;
 
+          // Consejo: comparar tu movimiento con el mejor
           if (move.from + move.to !== bestMove) {
             document.getElementById('advice').innerText = 'Consejo: Tal vez este movimiento no es óptimo, Stockfish recomienda ' + bestMove;
           } else {
             document.getElementById('advice').innerText = 'Buen movimiento!';
+          }
+
+          // Si es turno de Stockfish, hacer su jugada automáticamente
+          if (game.turn() === 'b') {
+            game.move({ from: bestMove.substring(0,2), to: bestMove.substring(2,4), promotion: 'q' });
+            board.position(game.fen());
+            document.getElementById('advice').innerText += ' | Stockfish jugó ' + bestMove;
           }
         }
       }
