@@ -744,29 +744,6 @@ let badMoves = 0;
 let boardFlipped = false;
 let aiThinking = false;
 let lastEval = 0;
-
-const stockfish = new Worker('https://cdn.jsdelivr.net/gh/niklasf/stockfish.js/stockfish.js');
-let stockfishReady = false;
-
-stockfish.onmessage = function(event){
-    const line = event.data;
-    if(line === 'uciok') stockfishReady = true;
-    if(line.startsWith('bestmove')) {
-        const move = line.split(' ')[1];
-        if(move && !game.game_over()){
-            const m = game.move({from: move.slice(0,2), to: move.slice(2,4), promotion:'q'});
-            lastFromSquare = m.from;
-            lastToSquare = m.to;
-            moveCount++;
-            aiThinking = false;
-            updateUI();
-        }
-    }
-};
-
-// Inicializar Stockfish
-stockfish.postMessage('uci');
-
     
 // ===================== PIEZAS Y ENTRENADOR =====================
 const pieceSymbols = {
@@ -781,17 +758,20 @@ const coachPhrases = {
     blunder: ["¡Error grave!", "Pierdes ventaja importante.", "¡Cuidado, este movimiento es malo!"]
 };
 
-// ===================== STOCKFISH =====================
-const stockfish = new Worker('https://cdn.jsdelivr.net/npm/stockfish/src/stockfish.js');
+// ===================== INICIALIZAR STOCKFISH =====================
+const stockfish = new Worker('https://cdn.jsdelivr.net/gh/niklasf/stockfish.js/stockfish.js');
 let stockfishReady = false;
 
-stockfish.onmessage = function(event){
+stockfish.onmessage = function(event) {
     const line = event.data;
-    if(line === 'uciok') stockfishReady = true;
-    if(line.startsWith('bestmove')) {
+    // Stockfish listo
+    if (line === 'uciok') stockfishReady = true;
+
+    // Recibir mejor movimiento
+    if (line.startsWith('bestmove')) {
         const move = line.split(' ')[1];
-        if(move && !game.game_over()){
-            const m = game.move({from: move.slice(0,2), to: move.slice(2,4), promotion:'q'});
+        if (move && !game.game_over()) {
+            const m = game.move({ from: move.slice(0,2), to: move.slice(2,4), promotion:'q' });
             lastFromSquare = m.from;
             lastToSquare = m.to;
             moveCount++;
@@ -800,6 +780,9 @@ stockfish.onmessage = function(event){
         }
     }
 };
+
+// Enviar inicialización
+stockfish.postMessage('uci');
 
 // ===================== EVALUACIÓN Y PROBABILIDADES =====================
 function evaluatePosition() {
@@ -901,13 +884,22 @@ function handleSquareClick(square){
 }
 
 // ===================== MOVIMIENTO IA CON STOCKFISH =====================
-function makeAIMove(){
-    if(game.game_over()||!stockfishReady) return;
+function makeAIMove() {
+    if (game.game_over() || !stockfishReady) return;
     aiThinking = true;
-    stockfish.postMessage('position fen '+game.fen());
-    stockfish.postMessage('go depth 15'); // ajustar profundidad según necesidad
+    // Enviar posición actual a Stockfish
+    stockfish.postMessage('position fen ' + game.fen());
+    // Pedir cálculo del mejor movimiento
+    stockfish.postMessage('go depth 15'); // Ajusta profundidad según necesidad
 }
-
+// ===================== OTRAS FUNCIONES DE STOCKFISH =====================
+// Ejemplo: pedir evaluación de la posición sin mover
+function evaluateWithStockfish() {
+    if (!stockfishReady) return;
+    stockfish.postMessage('position fen ' + game.fen());
+    stockfish.postMessage('go depth 15');
+}
+    
 // ===================== EVALUAR MOVIMIENTO =====================
 function evaluateMoveQuality(move){
     const positionScore = evaluatePosition();
