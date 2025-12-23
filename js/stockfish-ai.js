@@ -238,3 +238,52 @@ async function makeAIMove() {
     // `aiThinking` se resetea en el setTimeout en `handleSquareClick`  
     // updateUI() también se llama allí, por lo que no es necesario aquí.  
 }  
+
+// ===================== FUNCIONES DE UTILIDAD DE UI =====================  
+  
+/**  
+ * Actualiza el panel de evaluación de Stockfish en la interfaz principal.  
+ * Esta función es global para ser llamada desde game.js después de cada movimiento.  
+ */  
+async function updateEvaluationDisplay() {  
+    // Definir la profundidad y timeout para esta visualización continua  
+    // Puede ser menor que para la IA o el análisis detallado para mantener la fluidez  
+    const displayDepth = 12; // Una profundidad razonable para el feedback continuo  
+    const displayTimeout = 2000; // 2 segundos para no bloquear la UI  
+  
+    // Importante: No usar getBestMoveStockfish aquí, porque ese es para que la IA mueva.  
+    // Usamos evaluateWithStockfish directamente.  
+    const result = await evaluateWithStockfish(displayDepth, displayTimeout);  
+  
+    // Asegurarse de que los elementos existan antes de intentar actualizarlos  
+    const currentScoreElem = document.getElementById('currentScoreDisplay');  
+    const currentDepthElem = document.getElementById('currentDepthDisplay');  
+    const currentPVElem = document.getElementById('currentPVDisplay');  
+    const bestMoveSuggestionElem = document.getElementById('bestMoveSuggestionDisplay');  
+  
+    if (currentScoreElem) {  
+        currentScoreElem.textContent = result.score !== undefined ? result.score.toFixed(2) : 'N/A';  
+    }  
+    if (currentDepthElem) {  
+        currentDepthElem.textContent = result.depth !== undefined ? result.depth : 'N/A';  
+    }  
+    if (currentPVElem) {  
+        currentPVElem.textContent = result.pv && result.pv.length > 0 ? result.pv.join(' ') : 'N/A';  
+    }  
+    if (bestMoveSuggestionElem) {  
+        bestMoveSuggestionElem.textContent = result.bestMove ? result.bestMove : 'N/A';  
+    }  
+  
+    // Además, actualiza la barra de evaluación vertical y el score principal (si estas variables son globales)  
+    // (Asumiendo que evalScore y updateEvalBar están definidas en game.js y son accesibles/globales)  
+    if (typeof evalScore !== 'undefined') { // evalScore es el ID del div en el eval-bar-vertical  
+        document.getElementById('evalScore').textContent = result.score !== undefined ? result.score.toFixed(1) : '0.0';  
+    }  
+    if (typeof updateEvalBar === 'function') { // updateEvalBar es una función en game.js  
+        updateEvalBar(result.score);  
+    }  
+}  
+  
+// Exportar funciones si se usan módulos, de lo contrario, son globales  
+// Por ahora, asumimos que son globales porque se carga con <script>  
+// export { initializeStockfishEngine, getBestMoveStockfish, makeAIMove, updateEvaluationDisplay, evaluateWithStockfish };
