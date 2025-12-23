@@ -730,16 +730,15 @@
         </div>
     </div>
 
-    <script src="js/game.js"></script>
-    <script src="js/stockfish-ai.js"></script>
-    <script>
-        document.addEventListener('DOMContentLoaded', () => {  
-            // El `Stockfish` global ya está disponible gracias al <script src="js/stockfish.js">  
-            // Ahora lo inicializamos correctamente y luego el resto de tu app.  
-            initializeStockfishEngine(); // Nueva función en stockfish-ai.js  
+    <script src="js/game.js"></script>  
+    <script src="js/stockfish-ai.js"></script>  
+    <script>  
+        document.addEventListener('DOMContentLoaded', async () => { // Hacemos la función anónima async  
+            await initializeStockfishEngine(); // Espera a que Stockfish esté completamente inicializado  
             renderBoard();  
-            updateUI();  
-        });  
-    </script>  
-</body>  
+            await updateGameEvaluation(); // Añadido para que el eval bar tenga un valor inicial de Stockfish  
+            updateUI(); // Esto actualizará la UI, incluyendo la barra de evaluación y el mensaje inicial del entrenador  
+        });    
+    </script>    
+</body>    
 </html>
