@@ -101,15 +101,18 @@ function renderBoard() {
     }
 }
 
-// ===================== HANDLE SQUARE CLICK =====================
+// ===================== HANDLE SQUARE CLICK (ACTUALIZADO CON STOCKFISH) =====================
 function handleSquareClick(square) {
     if (aiThinking || game.game_over()) return;
 
     const piece = game.get(square);
 
+    // Seleccionar pieza propia
     if (selectedSquare && piece && game.get(selectedSquare).color === piece.color) {
         selectedSquare = square;
         highlights = game.moves({ square, verbose: true }).map(m => m.to);
+
+    // Intentar mover pieza seleccionada
     } else if (selectedSquare) {
         const move = game.move({ from: selectedSquare, to: square, promotion: 'q' });
 
@@ -120,19 +123,23 @@ function handleSquareClick(square) {
             selectedSquare = null;
             highlights = [];
 
+            // Evaluar calidad del movimiento usando Stockfish
             evaluateMoveQuality(move);
 
+            // Si estamos en modo vs IA o coach, hacer jugada de IA
             const mode = document.getElementById('gameMode').value;
             if ((mode === 'vs-ia' || mode === 'coach') && !game.game_over()) {
-                aiThinking = true;
-                setTimeout(makeAIMove, 1500);
+                makeAIMove(); // ahora sí usa Stockfish
             }
 
             updateUI();
         } else {
+            // Movimiento inválido
             selectedSquare = null;
             highlights = [];
         }
+
+    // Seleccionar pieza
     } else if (piece && piece.color === game.turn()) {
         selectedSquare = square;
         highlights = game.moves({ square, verbose: true }).map(m => m.to);
@@ -141,21 +148,24 @@ function handleSquareClick(square) {
     renderBoard();
 }
 
+
 // ===================== EVALUAR CALIDAD DE MOVIMIENTO =====================
 function evaluateMoveQuality(move) {
-    const positionScore = evaluatePosition();
-    const moveValue = Math.abs(positionScore - lastEval);
+    if (!stockfishReady) return;
+    const fenBefore = game.fen();
+    const evalScore = currentEval; // evaluación Stockfish
 
-    let quality = 'good';
-    if (moveValue > 0.5) quality = 'excellent';
-    else if (moveValue < -0.8) quality = 'blunder';
-    else if (moveValue < -0.3) quality = 'mistake';
+    if (fenCache[fenBefore]) {
+        const bestEval = fenCache[fenBefore].evalScore;
+        const moveEvalDiff = evalScore - bestEval;
+        classifyMove(moveEvalDiff);
+        return;
+    }
 
-    if (quality === 'excellent' || quality === 'good') goodMoves++;
-    if (quality === 'mistake' || quality === 'blunder') badMoves++;
-
-    giveCoachFeedback(quality);
-    lastEval = positionScore;
+    getBestMove(fenBefore, 15, (bestMove, bestEval) => {
+        const moveEvalDiff = evalScore - bestEval;
+        classifyMove(moveEvalDiff);
+    });
 }
 
 // ===================== FEEDBACK DEL ENTRENADOR =====================
@@ -183,15 +193,16 @@ function updateUI() {
     if (game.game_over()) showGameOver();
 }
 
+// ===================== ACTUALIZAR BARRA DE EVALUACIÓN =====================
 function updateEvalBar() {
-    const score = evaluatePosition();
-    const prob = calculateWinProbability();
+    const score = evaluatePosition();  // ahora viene de Stockfish
+    const prob = calculateWinProbability(); // Stockfish
+
     const percentage = 50 + Math.min(Math.max(score * 5, -50), 50);
-    
     const fillEl = document.getElementById('evalBarFill');
     fillEl.style.height = percentage + '%';
     fillEl.textContent = Math.abs(score).toFixed(1);
-    
+
     if (score > 0.5) fillEl.className = 'eval-bar-fill white-advantage';
     else if (score < -0.5) fillEl.className = 'eval-bar-fill black-advantage';
     else fillEl.className = 'eval-bar-fill';
@@ -288,19 +299,27 @@ function flipBoard() {
     renderBoard();
 }
 
+// ===================== SOLAMENTE USAR Stockfish PARA HINTS =====================
 function requestHint() {
-    if (game.game_over() || aiThinking) return;
-    const moves = game.moves({ verbose: true });
-    if (moves.length === 0) return;
-    
-    const bestMove = moves[Math.floor(Math.random() * Math.min(3, moves.length))];
-    selectedSquare = bestMove.from;
-    highlights = [bestMove.to];
-    renderBoard();
-    
-    const coachMsg = document.getElementById('coachMessage');
-    coachMsg.innerHTML = '<strong>💡 Pista:</strong> ' + bestMove.san;
-    coachMsg.className = 'coach-message good';
+    if (game.game_over() || aiThinking || !stockfishReady) return;
+    const fen = game.fen();
+    const difficulty = parseInt(document.getElementById('difficulty').value);
+    const depth = 10 + difficulty * 2;
+
+    aiThinking = true;
+
+    getBestMove(fen, depth, (bestMove, evalScore) => {
+        aiThinking = false;
+        if (!bestMove || bestMove === '(none)') return;
+
+        selectedSquare = bestMove.substring(0,2);
+        highlights = [bestMove.substring(2,4)];
+        renderBoard();
+
+        const coachMsg = document.getElementById('coachMessage');
+        coachMsg.innerHTML = `<strong>💡 Pista:</strong> ${bestMove} (eval: ${evalScore.toFixed(2)})`;
+        coachMsg.className = 'coach-message good';
+    });
 }
 
 function analysisMode() {
@@ -312,37 +331,76 @@ function closeAnalysis() {
     document.getElementById('analysisModal').classList.remove('active');
 }
 
-function performAnalysis() {
-    const score = evaluatePosition().toFixed(2);
-    const prob = calculateWinProbability();
-    const moves = game.moves({ verbose: true });
-    const history = game.history({ verbose: true });
-    
-    const board = game.board();
-    let material = 0;
-    const pieceValues = { 'p': 1, 'n': 3, 'b': 3.25, 'r': 5, 'q': 9 };
-    for (let row of board) {
-        for (let p of row) {
-            if (!p) continue;
-            const val = pieceValues[p.type] || 0;
-            material += p.color === 'w' ? val : -val;
+// ===================== REALIZAR JUGADA DE LA IA =====================
+function makeAIMove() {
+    if (game.game_over()) return;
+
+    const fen = game.fen();
+    const difficulty = parseInt(document.getElementById('difficulty').value);
+    const depth = 10 + difficulty * 2;
+
+    aiThinking = true;
+
+    getBestMove(fen, depth, (bestMove, evalScore) => {
+        if (!bestMove || bestMove === '(none)') {
+            aiThinking = false;
+            return;
         }
-    }
 
-    const phase = history.length < 10 ? 'Apertura' : history.length < 40 ? 'Medio Juego' : 'Final';
+        const move = game.move({ from: bestMove.substring(0,2), to: bestMove.substring(2,4), promotion: 'q' });
+        if (move) {
+            lastFromSquare = move.from;
+            lastToSquare = move.to;
+            moveCount++;
+            lastEval = evalScore;
+            evaluateMoveQuality(move); // evalúa con Stockfish
+        }
 
-    document.getElementById('whiteWinProb').innerHTML = prob.white + '%';
-    document.getElementById('drawProb').innerHTML = prob.draw + '%';
-    document.getElementById('blackWinProb').innerHTML = prob.black + '%';
-    document.getElementById('anyWinProb').innerHTML = prob.decisive + '%';
-    document.getElementById('currentScore').innerHTML = score;
-    document.getElementById('analysisDepth').innerHTML = '20 movimientos';
-    document.getElementById('bestMoveAnalysis').innerHTML = moves.length > 0 ? moves[0].san : '-';
-    document.getElementById('materialEval').innerHTML = material.toFixed(2);
-    document.getElementById('openingEval').innerHTML = history.length < 10 ? '0.0' : '-';
-    document.getElementById('middlegameEval').innerHTML = phase === 'Medio Juego' ? score : '-';
-    document.getElementById('endgameEval').innerHTML = phase === 'Final' ? score : '-';
-    document.getElementById('principalVariation').innerHTML = moves.slice(0, 5).map(m => m.san).join(' - ');
-    document.getElementById('analysisStatus').innerHTML = '✅ Análisis completado';
-    document.getElementById('analysisLoading').style.display = 'none';
+        aiThinking = false;
+        updateUI();
+    });
+}
+
+
+// ===================== ANÁLISIS PROFESIONAL =====================
+function performAnalysis() {
+    if (!stockfishReady) return;
+    const fen = game.fen();
+    const difficulty = parseInt(document.getElementById('difficulty').value);
+    const depth = 15 + difficulty * 2;
+
+    document.getElementById('analysisLoading').style.display = 'inline-block';
+    document.getElementById('analysisStatus').innerHTML = 'Analizando posición...';
+
+    getBestMove(fen, depth, (bestMove, evalScore) => {
+        const prob = calculateWinProbability();
+        const history = game.history({ verbose: true });
+        const board = game.board();
+        let material = 0;
+        const pieceValues = { 'p': 1, 'n': 3, 'b': 3.25, 'r': 5, 'q': 9 };
+
+        for (let row of board) {
+            for (let p of row) {
+                if (!p) continue;
+                material += p.color === 'w' ? pieceValues[p.type] || 0 : -(pieceValues[p.type] || 0);
+            }
+        }
+
+        const phase = history.length < 10 ? 'Apertura' : history.length < 40 ? 'Medio Juego' : 'Final';
+
+        document.getElementById('whiteWinProb').innerHTML = prob.white + '%';
+        document.getElementById('drawProb').innerHTML = prob.draw + '%';
+        document.getElementById('blackWinProb').innerHTML = prob.black + '%';
+        document.getElementById('anyWinProb').innerHTML = prob.decisive + '%';
+        document.getElementById('currentScore').innerHTML = evalScore.toFixed(2);
+        document.getElementById('analysisDepth').innerHTML = depth;
+        document.getElementById('bestMoveAnalysis').innerHTML = bestMove;
+        document.getElementById('materialEval').innerHTML = material.toFixed(2);
+        document.getElementById('openingEval').innerHTML = phase === 'Apertura' ? evalScore.toFixed(2) : '-';
+        document.getElementById('middlegameEval').innerHTML = phase === 'Medio Juego' ? evalScore.toFixed(2) : '-';
+        document.getElementById('endgameEval').innerHTML = phase === 'Final' ? evalScore.toFixed(2) : '-';
+        document.getElementById('principalVariation').innerHTML = bestMove;
+        document.getElementById('analysisStatus').innerHTML = '✅ Análisis completado';
+        document.getElementById('analysisLoading').style.display = 'none';
+    });
 }
