@@ -1,14 +1,15 @@
-// ===================== STOCKFISH REAL CON WEB WORKER =====================
+// ===================== STOCKFISH REAL LOCAL CON WEB WORKER =====================
 let engine = null;
 let engineReady = false;
 let pendingResolve = null;
 
-// Inicializa Stockfish como Web Worker
-async function initStockfish() {
+// ===================== INICIALIZAR STOCKFISH =====================
+function initStockfish() {
     try {
-        console.log('Cargando Stockfish desde CDN (Web Worker)...');
+        console.log('Cargando Stockfish desde js/stockfish.js (local)');
 
-        engine = new Worker('https://cdn.jsdelivr.net/npm/stockfish@16.1.0/src/stockfish.js');
+        // Crear Worker desde archivo local
+        engine = new Worker('js/stockfish.js');
 
         engine.onmessage = (event) => {
             const msg = event.data || event;
@@ -42,17 +43,20 @@ async function initStockfish() {
         engine.postMessage('setoption name Threads value 4');
         engine.postMessage('setoption name Hash value 128');
 
-        // Timeout de 5 segundos
+        // Timeout de 5 segundos: fallback local si no carga
         setTimeout(() => {
-            if (!engineReady) fallbackMode();
+            if (!engineReady) {
+                fallbackMode();
+            }
         }, 5000);
+
     } catch (e) {
         console.error('Error inicializando Stockfish:', e);
         fallbackMode();
     }
 }
 
-// Fallback local si Stockfish no carga
+// ===================== FALLBACK LOCAL =====================
 function fallbackMode() {
     engineReady = false;
     console.warn('⚠️ Stockfish no disponible, usando evaluación local');
@@ -60,7 +64,7 @@ function fallbackMode() {
         '<strong>⚠️ Análisis Local</strong> Stockfish no disponible, usando evaluación local.';
 }
 
-// Evalúa la posición y devuelve la mejor jugada
+// ===================== EVALUAR CON STOCKFISH =====================
 function evaluateWithStockfish(depth = 20) {
     return new Promise((resolve) => {
         if (!engineReady || !engine) {
@@ -73,7 +77,7 @@ function evaluateWithStockfish(depth = 20) {
     });
 }
 
-// Convierte movimiento de Stockfish a chess.js
+// ===================== OBTENER MEJOR MOVIMIENTO =====================
 async function getBestMoveStockfish(depth = 20) {
     const bestMoveStr = await evaluateWithStockfish(depth);
 
@@ -97,7 +101,6 @@ async function getBestMoveStockfish(depth = 20) {
         console.error('Error procesando movimiento de Stockfish:', e);
     }
 
-    // Último fallback
     const moves = game.moves({ verbose: true });
     return moves.length > 0 ? moves[0] : null;
 }
@@ -111,7 +114,6 @@ async function makeAIMove() {
 
     const difficulty = parseInt(document.getElementById('difficulty').value);
 
-    // Profundidad según dificultad
     const depthMap = {
         1: 6,   // Novato
         2: 12,  // Intermedio
@@ -143,12 +145,11 @@ async function makeAIMove() {
     if (game.game_over()) showGameOver();
 }
 
-// ===================== USO EN PISTA Y ANÁLISIS =====================
+// ===================== PISTAS =====================
 async function requestHint() {
     if (game.game_over() || aiThinking) return;
 
-    const difficulty = 5; // Mejor movimiento real
-    const move = await getBestMoveStockfish(difficulty);
+    const move = await getBestMoveStockfish(30); // mejor movimiento real
 
     if (move) {
         selectedSquare = move.from;
@@ -161,6 +162,7 @@ async function requestHint() {
     }
 }
 
+// ===================== ANÁLISIS =====================
 async function performAnalysis() {
     if (!engineReady) return;
 
