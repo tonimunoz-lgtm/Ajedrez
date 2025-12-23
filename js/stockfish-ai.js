@@ -1,5 +1,4 @@
 // js/stockfish-ai.js  
-  
 // ===================== STOCKFISH - MOTOR REAL =====================  
 // Variables globales para el manejo del motor Stockfish  
 let engine = null;  
