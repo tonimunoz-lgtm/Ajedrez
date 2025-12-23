@@ -1,31 +1,71 @@
 // ===================== STOCKFISH - MOTOR REAL =====================  
-let engine = null; // Esto será una referencia al objeto global Stockfish (A)  
+let engine = null;  
 let engineReady = false;  
+let currentStockfishResolve = null; // Para resolver la promesa de la evaluación actual  
+let currentStockfishTimeout = null; // Para limpiar el timeout de la evaluación actual  
+let stockfishIsProcessing = false; // Bandera para evitar mandar múltiples comandos 'go'  
+  
+// Cola de comandos UCI si necesitamos ejecutar comandos en secuencia  
+// Opcional, pero útil para comandos complejos más allá de 'go'  
+const stockfishCommandQueue = [];  
+  
+// Listener global para todos los mensajes de Stockfish  
+function stockfishMessageListener(message) {  
+    const data = typeof message === 'string' ? message : message.data;  
+  
+    if (data === 'readyok') {  
+        // Confirmación de que el motor está listo después de 'isready'  
+        console.log('✅ Stockfish reporta readyok.');  
+        // Aquí podrías procesar la cola si hubiera comandos en espera  
+        processStockfishQueue(); // Si se implementa una cola  
+    } else if (data.startsWith('info')) {  
+        // Si hay una evaluación activa, procesar la info  
+        if (currentStockfishResolve) {  
+            // Actualizar score, depth, pv en algún objeto temporal  
+            // o directamente en la lógica de evaluateWithStockfish  
+            // Por simplicidad, esta parte la gestionará evaluateWithStockfish  
+        }  
+    } else if (data.startsWith('bestmove')) {  
+        // Esto es crucial: Si hay una promesa de evaluación pendiente  
+        if (currentStockfishResolve) {  
+            clearTimeout(currentStockfishTimeout); // Limpiar timeout  
+            stockfishIsProcessing = false; // Ya no está procesando un 'go'  
+  
+            // Extraer bestMove y resolver la promesa  
+            const match = data.match(/bestmove (\S+)/);  
+            const bestMove = match ? match[1] : null;  
+  
+            // La lógica para extraer score, depth, pv durante el proceso  
+            // debe haber actualizado un objeto accesible aquí.  
+            // Para este ejemplo, pasaré solo el bestMove y el resto se asume  
+            // que se manejó en la lógica interna de evaluateWithStockfish.  
+            currentStockfishResolve({ bestMove: bestMove }); // Resolvemos con el bestMove  
+  
+            currentStockfishResolve = null; // Limpiar la promesa resuelta  
+            // Podrías también limpiar el estado de score, depth, pv si lo tuvieras global  
+        }  
+        // Procesar el siguiente comando en la cola si existe  
+        processStockfishQueue(); // Si se implementa una cola  
+    }  
+    // Otros mensajes UCI...  
+}  
   
 // Esta función debe ser llamada después de que stockfish.js se haya cargado  
-// y cuando el DOM esté listo (DOMContentLoaded).  
-async function initializeStockfishEngine() { // Renombrada para evitar conflictos y claridad  
+async function initializeStockfishEngine() {  
     try {  
-        // La variable global `Stockfish` es establecida por el script js/stockfish.js  
-        // Suponemos que ya está cargado.  
-          
-        // Esperamos a que el motor interno de Stockfish esté listo.  
-        // Stockfish.ready es una promesa definida en el stockfish.js que nos proporcionaste.  
-        engine = Stockfish; // Asignamos la referencia al objeto global Stockfish  
+        engine = Stockfish;  
+        // Asignar el listener global inmediatamente  
+        engine.onmessage = stockfishMessageListener; // Esto es clave  
+  
         await engine.ready; // Esperamos la promesa 'ready'  
-          
+  
         engineReady = true;  
         console.log('✅ Stockfish WASM cargado y listo.');  
         document.getElementById('coachMessage').innerHTML = '<strong>✅ Stockfish Real</strong> Motor profesional activado.';  
   
-        // Comandos UCI iniciales para configurar el motor  
         engine.postMessage('uci');  
-        engine.postMessage('isready'); // Esperar 'readyok' para confirmar  
+        engine.postMessage('isready');  
         engine.postMessage('ucinewgame');  
-  
-        // Escuchar 'readyok' antes de proceder, si es necesario, pero engine.ready ya lo cubrió.  
-        // Podrías poner una pequeña demora si los comandos iniciales necesitan asentarse.  
-        // setTimeout(() => { ... }, 100);  
   
     } catch (e) {  
         console.error('Error inicializando Stockfish:', e);  
@@ -34,95 +74,102 @@ async function initializeStockfishEngine() { // Renombrada para evitar conflicto
     }  
 }  
   
-// ===================== EVALUAR CON STOCKFISH REAL =====================  
-function evaluateWithStockfish(depth = 20) {  
+// Función para enviar comandos a Stockfish de forma segura  
+function sendStockfishCommand(command) {  
+    if (!engine || !engineReady) {  
+        console.warn('Stockfish no está listo para recibir comandos.');  
+        return;  
+    }  
+    // Podrías poner esto en una cola si necesitas manejar orden y respuestas  
+    engine.postMessage(command);  
+}  
+  
+// ===================== EVALUAR CON STOCKFISH REAL (REFACTORIZADO) =====================  
+// Ahora usa el listener global y gestiona su propia resolución  
+function evaluateWithStockfish(depth = 20, customTimeout = 5000) {  
     return new Promise((resolve) => {  
         if (!engineReady || !engine) {  
             resolve({ score: 0, bestMove: null, depth: 0, pv: [] });  
             return;  
         }  
   
-        let bestMove = null;  
-        let score = 0;  
-        let depthReached = 0;  
-        let pv = [];  
-        let isResolved = false;  
+        if (stockfishIsProcessing) {  
+            console.warn("Stockfish ya está procesando un comando 'go'. Ignorando nueva solicitud.");  
+            // O podrías poner esta solicitud en una cola y procesarla después  
+            resolve({ score: 0, bestMove: null, depth: 0, pv: [] }); // O rechazar  
+            return;  
+        }  
+  
+        let currentScore = 0;  
+        let currentDepth = 0;  
+        let currentPv = [];  
+        let currentBestMove = null; // Esto se llenará con el 'bestmove' final  
+  
+        // Preparar para la resolución de esta promesa específica  
+        currentStockfishResolve = ({ bestMove, score = currentScore, depth = currentDepth, pv = currentPv }) => {  
+            clearTimeout(currentStockfishTimeout); // Asegurarse de limpiar  
+            currentStockfishResolve = null; // Resetear para la siguiente llamada  
+            stockfishIsProcessing = false; // Liberar el motor  
+            resolve({ score, bestMove, depth, pv });  
+        };  
   
         // Establecer un timeout si Stockfish tarda demasiado  
-        const timeout = setTimeout(() => {  
-            if (!isResolved) {  
-                isResolved = true;  
-                // Si el análisis no termina a tiempo, enviamos 'stop'  
-                engine.postMessage('stop');   
-                resolve({ score, bestMove, depth: depthReached, pv });  
-            }  
-        }, 5000); // 5 segundos de tiempo máximo para la evaluación  
+        currentStockfishTimeout = setTimeout(() => {  
+            console.warn('Stockfish timeout. Forzando detención y resolución.');  
+            engine.postMessage('stop'); // Detener el cálculo actual  
+            currentStockfishResolve({ bestMove: currentBestMove, score: currentScore, depth: currentDepth, pv: currentPv });  
+        }, customTimeout);  
   
-        // Listener específico para esta llamada de evaluación  
-        // Ojo: Si hay múltiples llamadas concurrentes a evaluateWithStockfish,  
-        // este listener se sobrescribirá. Lo ideal sería usar `A.addMessageListener`  
-        // para un listener general y filtrar mensajes.  
-        // Para simplificar, asumimos que no habrá llamadas concurrentes complejas.  
-        const originalOnMessage = engine.onmessage; // Guarda el original si existe  
-  
+        // Modificar el listener global temporalmente para capturar info para esta evaluación  
+        // Esto es un poco hacky si Stockfish.onmessage puede ser 'addMessageListener'  
+        // Lo ideal sería tener un manejador más avanzado en el stockfish.js  
+        const originalListener = engine.onmessage;  
         engine.onmessage = (message) => {  
-            // El mensaje de Stockfish viene en event.data si es un Worker,  
-            // pero si es el objeto global, es directamente el string.  
             const data = typeof message === 'string' ? message : message.data;  
   
-            if (isResolved) return; // Ya se resolvió, ignora mensajes posteriores  
-  
-            // `bestmove` es la señal final para resolver la promesa  
-            if (data.startsWith('bestmove')) {  
-                isResolved = true;  
-                clearTimeout(timeout);  
-                const match = data.match(/bestmove (\S+)/);  
-                if (match) bestMove = match[1];  
-                  
-                engine.onmessage = originalOnMessage; // Restaurar el listener original  
-                resolve({ score, bestMove, depth: depthReached, pv });  
-            }  
-  
-            // Procesar la información de análisis  
             if (data.startsWith('info')) {  
-                // Score  
+                // Actualizar las variables de esta evaluación  
                 const scoreMatch = data.match(/score (cp|mate) (-?\d+)/);  
                 if (scoreMatch) {  
                     if (scoreMatch[1] === 'cp') {  
-                        score = parseInt(scoreMatch[2]) / 100; // Centipeones a peones  
+                        currentScore = parseInt(scoreMatch[2]) / 100;  
                     } else if (scoreMatch[1] === 'mate') {  
-                        // Un valor muy alto/bajo para mate  
-                        score = scoreMatch[2] > 0 ? 9999 : -9999;   
+                        currentScore = scoreMatch[2] > 0 ? 9999 : -9999;  
                     }  
                 }  
-  
-                // Depth  
                 const depthMatch = data.match(/depth (\d+)/);  
                 if (depthMatch) {  
-                    depthReached = parseInt(depthMatch[1]);  
+                    currentDepth = parseInt(depthMatch[1]);  
                 }  
-  
-                // Principal Variation (PV)  
                 const pvMatch = data.match(/pv (.+)/);  
                 if (pvMatch) {  
-                    pv = pvMatch[1].split(' ');  
+                    currentPv = pvMatch[1].split(' ');  
                 }  
+            } else if (data.startsWith('bestmove')) {  
+                // Cuando llega el bestmove, resolver la promesa con la info acumulada  
+                const match = data.match(/bestmove (\S+)/);  
+                currentBestMove = match ? match[1] : null;  
+  
+                // Restaurar el listener original (global) antes de resolver  
+                engine.onmessage = originalListener;  
+                currentStockfishResolve({ bestMove: currentBestMove }); // Pasar los datos acumulados  
             }  
+            // Asegurarse de que el listener global también procesa otros mensajes si es necesario  
+            originalListener(message);  
         };  
   
         try {  
-            engine.postMessage('position fen ' + game.fen());  
-            engine.postMessage('go depth ' + depth);  
+            sendStockfishCommand('position fen ' + game.fen());  
+            sendStockfishCommand('go depth ' + depth);  
+            stockfishIsProcessing = true; // Indicar que Stockfish está ocupado  
         } catch (e) {  
-            if (!isResolved) {  
-                isResolved = true;  
-                clearTimeout(timeout);  
-                engine.onmessage = originalOnMessage;  
-                resolve({ score: 0, bestMove: null, depth: 0, pv: [] });  
-            }  
+            console.error('Error al enviar comando a Stockfish:', e);  
+            clearTimeout(currentStockfishTimeout);  
+            engine.onmessage = originalListener; // Restaurar en caso de error  
+            currentStockfishResolve({ score: 0, bestMove: null, depth: 0, pv: [] });  
         }  
     });  
-}  
+}   
   
 // ===================== OBTENER MEJOR MOVIMIENTO =====================  
 async function getBestMoveStockfish(depth = 20) {  
