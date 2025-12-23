@@ -1,15 +1,16 @@
 // js/stockfish-ai.js  
+  
 // ===================== STOCKFISH - MOTOR REAL =====================  
 // Variables globales para el manejo del motor Stockfish  
 let engine = null;  
-let engineReady = false;  
+let engineReady = false; // Esta es la variable que necesita ser globalmente accesible  
 let currentStockfishResolve = null; // Para resolver la promesa de la evaluación actual  
 let currentStockfishTimeout = null; // Para limpiar el timeout de la evaluación actual  
 let stockfishIsProcessing = false; // Bandera para evitar mandar múltiples comandos 'go'  
   
 // Cola de comandos UCI - Actualmente no implementada, pero la variable está lista para ello.  
 // Sería necesaria para manejar múltiples solicitudes de evaluación concurrentes de forma ordenada.  
-const stockfishCommandQueue = [];   
+const stockfishCommandQueue = [];  
   
 /**  
  * Listener global para todos los mensajes que Stockfish envía.  
@@ -26,7 +27,7 @@ function stockfishMessageListener(message) {
         console.log('✅ Stockfish reporta readyok.');  
         // Aquí se procesaría la cola si tuviéramos una implementación completa de 'stockfishCommandQueue'  
         // processStockfishQueue();  
-    }   
+    }  
     // Los mensajes 'info' y 'bestmove' son manejados por el listener temporal en 'evaluateWithStockfish'  
     // cuando hay una evaluación activa. Si no hay evaluación activa, el listener global los ignora.  
     else if (data.startsWith('bestmove')) {  
@@ -36,7 +37,7 @@ function stockfishMessageListener(message) {
             // stockfishIsProcessing también se limpia en la resolución.  
             const match = data.match(/bestmove (\S+)/);  
             const bestMove = match ? match[1] : null;  
-              
+  
             // Llama a la función de resolución de la promesa almacenada,  
             // pasando el bestMove y usando los datos acumulados (score, depth, pv)  
             // que se cerraron en el scope de la función que creó currentStockfishResolve.  
@@ -65,7 +66,10 @@ async function initializeStockfishEngine() {
         // Stockfish.ready es una promesa definida en el stockfish.js.  
         await engine.ready;  
   
+        // Establecer engineReady a true (y a window.engineReady también para game.js)  
         engineReady = true;  
+        window.engineReady = true; // HACER ESTA VARIABLE GLOBALMENTE ACCESIBLE  
+  
         console.log('✅ Stockfish WASM cargado y listo.');  
         // Actualiza un elemento HTML para informar al usuario sobre el estado del motor  
         const coachMessageElem = document.getElementById('coachMessage');  
@@ -80,7 +84,10 @@ async function initializeStockfishEngine() {
   
     } catch (e) {  
         console.error('Error inicializando Stockfish:', e);  
+        // En caso de error, establecer engineReady a false (y a window.engineReady también)  
         engineReady = false;  
+        window.engineReady = false; // HACER ESTA VARIABLE GLOBALMENTE ACCESIBLE  
+  
         // Informa al usuario sobre el fallo en la inicialización  
         const coachMessageElem = document.getElementById('coachMessage');  
         if (coachMessageElem) {  
@@ -95,7 +102,7 @@ async function initializeStockfishEngine() {
  * @param {string} command - El comando UCI a enviar (ej. 'position fen ...', 'go depth ...').  
  */  
 function sendStockfishCommand(command) {  
-    if (!engine || !engineReady) {  
+    if (!engine || !engineReady) { // Usamos la variable local engineReady aquí  
         console.warn('Stockfish no está listo para recibir comandos.');  
         return;  
     }  
@@ -115,7 +122,7 @@ function sendStockfishCommand(command) {
 function evaluateWithStockfish(depth = 20, customTimeout = 5000) {  
     return new Promise((resolve) => {  
         // Si el motor no está listo, resuelve inmediatamente con valores por defecto.  
-        if (!engineReady || !engine) {  
+        if (!engineReady || !engine) { // Usamos la variable local engineReady aquí  
             resolve({ score: 0, bestMove: null, depth: 0, pv: [] });  
             return;  
         }  
@@ -328,9 +335,12 @@ async function updateEvaluationDisplay() {
         currentDepthElem.textContent = result.depth !== undefined ? result.depth : 'N/A';  
     }  
     if (currentPVElem) {  
+        // En el panel lateral, podemos mostrar la PV en UCI para ser consistentes con el resultado directo del motor  
+        // Si se desea SAN aquí también, se necesitaría llamar a convertPvUciToSan  
         currentPVElem.textContent = result.pv && result.pv.length > 0 ? result.pv.join(' ') : 'N/A';  
     }  
     if (bestMoveSuggestionElem) {  
+        // Aquí también podríamos convertir result.bestMove a SAN si se quisiera.  
         bestMoveSuggestionElem.textContent = result.bestMove ? result.bestMove : 'N/A';  
     }  
   
@@ -347,11 +357,12 @@ async function updateEvaluationDisplay() {
     }  
 }  
   
-// ===================== EXPORTAR FUNCIONES =====================  
-// Para que estas funciones sean accesibles globalmente desde otros scripts (como game.js o index.html),  
-// las asignamos al objeto `window`. Esto es común en proyectos sin un sistema de módulos JS.  
+// ===================== EXPORTAR GLOBALES =====================  
+// Asignamos variables y funciones al objeto `window` para que sean accesibles  
+// desde otros scripts o el HTML directamente, ya que no estamos usando módulos JS.  
 window.initializeStockfishEngine = initializeStockfishEngine;  
 window.getBestMoveStockfish = getBestMoveStockfish;  
 window.makeAIMove = makeAIMove;  
 window.evaluateWithStockfish = evaluateWithStockfish; // Útil para el modal de análisis detallado  
-window.updateEvaluationDisplay = updateEvaluationDisplay;
+window.updateEvaluationDisplay = updateEvaluationDisplay;  
+window.engineReady = engineReady; // <--- ESTO ES LO NUEVO: HACER engineReady GLOBALMENTE ACCESIBLE  
