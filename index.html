@@ -1,770 +1,772 @@
-<!DOCTYPE html>    
-<html lang="es">    
-<head>    
+<!DOCTYPE html>  
+<html lang="es">  
+<head>  
+    
+    <meta charset="UTF-8">  
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">  
+    <title>Entrenador de Ajedrez Profesional</title>  
       
-    <meta charset="UTF-8">    
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">    
-    <title>Entrenador de Ajedrez Profesional</title>    
-        
-    <!-- Tus estilos CSS (se mantiene igual) -->    
-    <style>    
-        /* ... (tus estilos CSS completos) ... */  
-        * {    
-            margin: 0;    
-            padding: 0;    
-            box-sizing: border-box;    
-        }    
-    
-        html, body {    
-            width: 100%;    
-            height: 100%;    
-        }    
-    
-        body {    
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;    
-            background: linear-gradient(135deg, #1e1e2e 0%, #2d2d44 100%);    
-            color: #fff;    
-            display: flex;    
-            flex-direction: column;    
-            overflow: hidden;    
-        }    
-    
-        .header {    
-            padding: 15px 20px;    
-            text-align: center;    
-            background: rgba(0, 0, 0, 0.3);    
-            border-bottom: 2px solid #00d4ff;    
-            flex-shrink: 0;    
-        }    
-    
-        .header h1 {    
-            font-size: 2em;    
-            margin: 0;    
-            background: linear-gradient(135deg, #00d4ff, #0099ff);    
-            -webkit-background-clip: text;    
-            -webkit-text-fill-color: transparent;    
-            background-clip: text;    
-        }    
-    
-        .main-container {    
-            display: flex;    
-            flex: 1;    
-            gap: 20px;    
-            padding: 20px;    
-            overflow: hidden;    
-        }    
-    
-        .board-section {    
-            display: flex;    
-            flex-direction: column;    
-            gap: 15px;    
-            flex: 0 0 auto;    
-        }    
-    
-        .board-and-eval {    
-            display: flex;    
-            gap: 15px;    
-            align-items: flex-start;    
-        }    
-    
-        .chessboard {    
-            display: grid;    
-            grid-template-columns: repeat(8, 1fr);    
-            grid-template-rows: repeat(8, 1fr);    
-            gap: 0;    
-            background: #2a2a3e;    
-            border: 3px solid #00d4ff;    
-            border-radius: 8px;    
-            overflow: hidden;    
-            width: 600px;    
-            height: 600px;    
-            flex-shrink: 0;    
-        }    
-    
-        .square {    
-            display: flex;    
-            align-items: center;    
-            justify-content: center;    
-            font-size: 3.2em;    
-            cursor: pointer;    
-            user-select: none;    
-            transition: all 0.15s;    
-        }    
-    
-        .square:hover {    
-            filter: brightness(1.1);    
-        }    
-    
-        .square.light {    
-            background: #f0d9b5;    
-        }    
-    
-        .square.dark {    
-            background: #b58863;    
-        }    
-    
-        .square.selected {    
-            background: #baca44 !important;    
-            box-shadow: inset 0 0 20px rgba(186, 202, 68, 0.8);    
-        }    
-    
-        .square.highlight {    
-            background: rgba(186, 202, 68, 0.6) !important;    
-        }    
-    
-        .square.last-move {    
-            background: rgba(255, 255, 100, 0.4) !important;    
-        }    
-    
-        .eval-bar-vertical {    
-            display: flex;    
-            flex-direction: column;    
-            width: 80px;    
-            height: 600px;    
-            background: #2a2a3e;    
-            border: 3px solid #00d4ff;    
-            border-radius: 8px;    
-            overflow: hidden;    
-            padding: 8px 4px;    
-            gap: 8px;    
-            align-items: center;    
-            flex-shrink: 0;    
-        }    
-    
-        .eval-label {    
-            font-size: 0.7em;    
-            color: #00d4ff;    
-            font-weight: 600;    
-            text-align: center;    
-            line-height: 1.2;    
-        }    
-    
-        .eval-bar-container {    
-            flex: 1;    
-            width: 100%;    
-            background: #1a1a2e;    
-            border-radius: 6px;    
-            overflow: hidden;    
-            display: flex;    
-            flex-direction: column-reverse;    
-            border: 1px solid #444;    
-        }    
-    
-        .eval-bar-fill {    
-            width: 100%;    
-            background: linear-gradient(180deg, #0099ff 0%, #00d4ff 100%);    
-            display: flex;    
-            align-items: flex-end;    
-            justify-content: center;    
-            padding-bottom: 3px;    
-            font-size: 0.6em;    
-            font-weight: 700;    
-            color: #000;    
-            transition: height 0.3s ease;    
-        }    
-    
-        .eval-bar-fill.white-advantage {    
-            background: linear-gradient(180deg, #f0f0f0 0%, #d0d0d0 100%);    
-        }    
-    
-        .eval-bar-fill.black-advantage {    
-            background: linear-gradient(180deg, #2a2a2a 0%, #1a1a1a 100%);    
-            color: #fff;    
-        }    
-    
-        .eval-score {    
-            font-size: 0.65em;    
-            color: #00d4ff;    
-            font-weight: 700;    
-            margin-top: 4px;    
-            text-align: center;    
-        }    
-    
-        .controls {    
-            display: grid;    
-            grid-template-columns: 1fr 1fr 1fr 1fr;    
-            gap: 10px;    
-            background: rgba(0, 212, 255, 0.05);    
-            padding: 15px;    
-            border-radius: 8px;    
-            border: 1px solid rgba(0, 212, 255, 0.2);    
-            max-width: 680px;    
-        }    
-    
-        .control-group {    
-            display: flex;    
-            flex-direction: column;    
-            gap: 6px;    
-        }    
-    
-        .control-group label {    
-            font-size: 0.8em;    
-            color: #00d4ff;    
-            font-weight: 600;    
-        }    
-    
-        select, button {    
-            padding: 10px 12px;    
-            background: #0099ff;    
-            color: #fff;    
-            border: none;    
-            border-radius: 6px;    
-            cursor: pointer;    
-            font-size: 0.9em;    
-            font-weight: 600;    
-            transition: all 0.3s;    
-        }    
-    
-        select:hover, button:hover {    
-            background: #00d4ff;    
-            transform: translateY(-2px);    
-        }    
-    
-        button.full-width {    
-            grid-column: span 2;    
-        }    
-    
-        button.secondary {    
-            background: #444;    
-        }    
-    
-        button.secondary:hover {    
-            background: #555;    
-        }    
-    
-        .panels-container {    
-            display: grid;    
-            grid-template-columns: 1fr 1fr;    
-            gap: 20px;    
-            flex: 1;    
-            overflow: hidden;    
-            min-height: 0;    
-        }    
-    
-        .stats-panel {    
-            background: rgba(0, 212, 255, 0.05);    
-            border: 1px solid rgba(0, 212, 255, 0.2);    
-            border-radius: 8px;    
-            padding: 20px;    
-            overflow-y: auto;    
-            display: flex;    
-            flex-direction: column;    
-            gap: 15px;    
-        }    
-    
-        .coach-message {    
-            background: rgba(0, 212, 255, 0.1);    
-            border-left: 4px solid #00d4ff;    
-            padding: 12px;    
-            border-radius: 6px;    
-            font-size: 0.9em;    
-            line-height: 1.5;    
-        }    
-    
-        .coach-message strong {    
-            color: #00d4ff;    
-            display: block;    
-            margin-bottom: 5px;    
-        }    
-    
-        .coach-message.good {    
-            border-left-color: #00ff00;    
-            background: rgba(0, 255, 0, 0.05);    
-        }    
-    
-        .coach-message.bad {    
-            border-left-color: #ff0000;    
-            background: rgba(255, 0, 0, 0.05);    
-        }    
-    
-        .last-move-info {    
-            display: grid;    
-            grid-template-columns: 1fr 1fr;    
-            gap: 10px;    
-            font-size: 0.85em;    
-        }    
-    
-        .move-box {    
-            background: rgba(0, 212, 255, 0.1);    
-            padding: 10px;    
-            border-radius: 6px;    
-            text-align: center;    
-            border: 1px solid rgba(0, 212, 255, 0.2);    
-        }    
-    
-        .move-box strong {    
-            color: #00d4ff;    
-            display: block;    
-            font-size: 1.1em;    
-        }    
-    
-        .stats-quick {    
-            display: grid;    
-            grid-template-columns: 1fr 1fr 1fr 1fr;    
-            gap: 8px;    
-            font-size: 0.8em;    
-        }    
-    
-        .stat-quick-box {    
-            background: rgba(0, 212, 255, 0.1);    
-            padding: 10px;    
-            border-radius: 6px;    
-            text-align: center;    
-            border: 1px solid rgba(0, 212, 255, 0.2);    
-        }    
-    
-        .stat-quick-box strong {    
-            color: #00d4ff;    
-            display: block;    
-            font-size: 1.2em;    
-            margin-bottom: 3px;    
-        }    
-    
-        .stat-quick-box span {    
-            font-size: 0.75em;    
-        }    
-    
-        .move-history {    
-            flex: 1;    
-            overflow-y: auto;    
-            background: rgba(255, 255, 255, 0.02);    
-            padding: 12px;    
-            border-radius: 6px;    
-            border: 1px solid rgba(0, 212, 255, 0.2);    
-            font-size: 0.8em;    
-        }    
-    
-        .move-item {    
-            padding: 6px;    
-            background: rgba(0, 212, 255, 0.1);    
-            margin-bottom: 4px;    
-            border-radius: 4px;    
-            border-left: 3px solid #00d4ff;    
-        }    
-    
-        h2 {    
-            font-size: 1.1em;    
-            color: #00d4ff;    
-            margin: 0;    
-        }    
-    
-        h3 {    
-            font-size: 0.95em;    
-            color: #fff;    
-            margin: 0;    
-        }    
-    
-        .opening-info {    
-            background: rgba(0, 212, 255, 0.05);    
-            padding: 10px;    
-            border-radius: 6px;    
-            border-left: 3px solid #00d4ff;    
-            font-size: 0.85em;    
-        }    
-    
-        .analysis-modal {    
-            display: none;    
-            position: fixed;    
-            top: 0;    
-            left: 0;    
-            right: 0;    
-            bottom: 0;    
-            background: rgba(0, 0, 0, 0.9);    
-            z-index: 1000;    
-            align-items: center;    
-            justify-content: center;    
-        }    
-    
-        .analysis-modal.active {    
-            display: flex;    
-        }    
-    
-        .analysis-content {    
-            background: #1e1e2e;    
-            border: 2px solid #00d4ff;    
-            border-radius: 12px;    
-            padding: 30px;    
-            max-width: 900px;    
-            max-height: 85vh;    
-            overflow-y: auto;    
-            width: 90%;    
-        }    
-    
-        .analysis-close {    
-            float: right;    
-            cursor: pointer;    
-            font-size: 32px;    
-            color: #00d4ff;    
-            line-height: 1;    
-            margin-bottom: 15px;    
-        }    
-    
-        .analysis-section {    
-            margin-bottom: 20px;    
-            padding: 15px;    
-            background: rgba(0, 212, 255, 0.05);    
-            border-radius: 8px;    
-            border-left: 3px solid #00d4ff;    
-        }    
-    
-        .analysis-section h3 {    
-            margin-bottom: 10px;    
-            color: #00d4ff;    
-        }    
-    
-        .analysis-grid {    
-            display: grid;    
-            grid-template-columns: 1fr 1fr;    
-            gap: 10px;    
-            margin-top: 10px;    
-        }    
-    
-        .analysis-box {    
-            background: rgba(0, 212, 255, 0.1);    
-            padding: 12px;    
-            border-radius: 6px;    
-            border: 1px solid rgba(0, 212, 255, 0.2);    
-        }    
-    
-        .analysis-box strong {    
-            color: #00ff00;    
-            display: block;    
-            font-size: 1.3em;    
-        }    
-    
-        .loading {    
-            display: inline-block;    
-            width: 20px;    
-            height: 20px;    
-            border: 3px solid #00d4ff;    
-            border-radius: 50%;    
-            border-top-color: transparent;    
-            animation: spin 1s linear infinite;    
-        }    
-    
-        @keyframes spin {    
-            to { transform: rotate(360deg); }    
-        }    
-    
-        @media (max-width: 1400px) {    
-            .chessboard {    
-                width: 500px;    
-                height: 500px;    
-            }    
-    
-            .square {    
-                font-size: 2.5em;    
-            }    
-    
-            .eval-bar-vertical {    
-                height: 500px;    
-            }    
-    
-            .controls {    
-                max-width: 580px;    
-            }    
-        }    
-    
-        @media (max-width: 1200px) {    
-            .main-container {    
-                flex-direction: column;    
-                gap: 15px;    
-                padding: 15px;    
-            }    
-    
-            .board-and-eval {    
-                justify-content: center;    
-            }    
-    
-            .panels-container {    
-                grid-template-columns: 1fr;    
-                gap: 15px;    
-                max-height: 400px;    
-            }    
-    
-            .eval-bar-vertical {    
-                display: none;    
-            }    
-        }    
-    
-        @media (max-width: 768px) {    
-            .chessboard {    
-                width: 100%;    
-                max-width: 450px;    
-                height: auto;    
-                aspect-ratio: 1;    
-            }    
-    
-            .square {    
-                font-size: 2em;    
-            }    
-    
-            .controls {    
-                max-width: 100%;    
-                grid-template-columns: 1fr 1fr;    
-            }    
-    
-            button.full-width {    
-                grid-column: span 2;    
-            }    
-    
-            .eval-bar-vertical {    
-                display: none;    
-            }    
-    
-            .stats-quick {    
-                grid-template-columns: 1fr 1fr;    
-            }    
-    
-            .stats-panel {    
-                padding: 15px;    
-            }    
-        }    
-    
-        ::-webkit-scrollbar {    
-            width: 8px;    
-        }    
-    
-        ::-webkit-scrollbar-track {    
-            background: rgba(0, 212, 255, 0.1);    
-        }    
-    
-        ::-webkit-scrollbar-thumb {    
-            background: #0099ff;    
-            border-radius: 4px;    
-        }    
-    
-        ::-webkit-scrollbar-thumb:hover {    
-            background: #00d4ff;    
-        }    
-    </style>    
-</head>    
-<body>    
-    <div class="header">    
-        <h1>♟️ Entrenador de Ajedrez Profesional</h1>    
-    </div>    
-    
-    <div class="main-container">    
-        <div class="board-section">    
-            <div class="board-and-eval">    
-                <div class="chessboard" id="board"></div>    
-                    
-                <div class="eval-bar-vertical">    
-                    <div class="eval-label">Evaluación</div>    
-                    <div class="eval-bar-container">    
-                        <div class="eval-bar-fill" id="evalBarFill"></div>    
-                    </div>    
-                    <div class="eval-score" id="evalScore">0.0</div>    
-                    <div class="eval-label" style="font-size: 0.6em; margin-top: 5px;">    
-                        <div id="winProb" style="color: #00ff00;">B:50%</div>    
-                    </div>    
+    <!-- Tus estilos CSS -->  
+    <style>  
+        * {  
+            margin: 0;  
+            padding: 0;  
+            box-sizing: border-box;  
+        }  
+  
+        html, body {  
+            width: 100%;  
+            height: 100%;  
+        }  
+  
+        body {  
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;  
+            background: linear-gradient(135deg, #1e1e2e 0%, #2d2d44 100%);  
+            color: #fff;  
+            display: flex;  
+            flex-direction: column;  
+            overflow: hidden;  
+        }  
+  
+        .header {  
+            padding: 15px 20px;  
+            text-align: center;  
+            background: rgba(0, 0, 0, 0.3);  
+            border-bottom: 2px solid #00d4ff;  
+            flex-shrink: 0;  
+        }  
+  
+        .header h1 {  
+            font-size: 2em;  
+            margin: 0;  
+            background: linear-gradient(135deg, #00d4ff, #0099ff);  
+            -webkit-background-clip: text;  
+            -webkit-text-fill-color: transparent;  
+            background-clip: text;  
+        }  
+  
+        .main-container {  
+            display: flex;  
+            flex: 1;  
+            gap: 20px;  
+            padding: 20px;  
+            overflow: hidden;  
+        }  
+  
+        .board-section {  
+            display: flex;  
+            flex-direction: column;  
+            gap: 15px;  
+            flex: 0 0 auto;  
+        }  
+  
+        .board-and-eval {  
+            display: flex;  
+            gap: 15px;  
+            align-items: flex-start;  
+        }  
+  
+        .chessboard {  
+            display: grid;  
+            grid-template-columns: repeat(8, 1fr);  
+            grid-template-rows: repeat(8, 1fr);  
+            gap: 0;  
+            background: #2a2a3e;  
+            border: 3px solid #00d4ff;  
+            border-radius: 8px;  
+            overflow: hidden;  
+            width: 600px;  
+            height: 600px;  
+            flex-shrink: 0;  
+        }  
+  
+        .square {  
+            display: flex;  
+            align-items: center;  
+            justify-content: center;  
+            font-size: 3.2em;  
+            cursor: pointer;  
+            user-select: none;  
+            transition: all 0.15s;  
+        }  
+  
+        .square:hover {  
+            filter: brightness(1.1);  
+        }  
+  
+        .square.light {  
+            background: #f0d9b5;  
+        }  
+  
+        .square.dark {  
+            background: #b58863;  
+        }  
+  
+        .square.selected {  
+            background: #baca44 !important;  
+            box-shadow: inset 0 0 20px rgba(186, 202, 68, 0.8);  
+        }  
+  
+        .square.highlight {  
+            background: rgba(186, 202, 68, 0.6) !important;  
+        }  
+  
+        .square.last-move {  
+            background: rgba(255, 255, 100, 0.4) !important;  
+        }  
+  
+        .eval-bar-vertical {  
+            display: flex;  
+            flex-direction: column;  
+            width: 80px;  
+            height: 600px;  
+            background: #2a2a3e;  
+            border: 3px solid #00d4ff;  
+            border-radius: 8px;  
+            overflow: hidden;  
+            padding: 8px 4px;  
+            gap: 8px;  
+            align-items: center;  
+            flex-shrink: 0;  
+        }  
+  
+        .eval-label {  
+            font-size: 0.7em;  
+            color: #00d4ff;  
+            font-weight: 600;  
+            text-align: center;  
+            line-height: 1.2;  
+        }  
+  
+        .eval-bar-container {  
+            flex: 1;  
+            width: 100%;  
+            background: #1a1a2e;  
+            border-radius: 6px;  
+            overflow: hidden;  
+            display: flex;  
+            flex-direction: column-reverse;  
+            border: 1px solid #444;  
+        }  
+  
+        .eval-bar-fill {  
+            width: 100%;  
+            background: linear-gradient(180deg, #0099ff 0%, #00d4ff 100%);  
+            display: flex;  
+            align-items: flex-end;  
+            justify-content: center;  
+            padding-bottom: 3px;  
+            font-size: 0.6em;  
+            font-weight: 700;  
+            color: #000;  
+            transition: height 0.3s ease;  
+        }  
+  
+        .eval-bar-fill.white-advantage {  
+            background: linear-gradient(180deg, #f0f0f0 0%, #d0d0d0 100%);  
+        }  
+  
+        .eval-bar-fill.black-advantage {  
+            background: linear-gradient(180deg, #2a2a2a 0%, #1a1a1a 100%);  
+            color: #fff;  
+        }  
+  
+        .eval-score {  
+            font-size: 0.65em;  
+            color: #00d4ff;  
+            font-weight: 700;  
+            margin-top: 4px;  
+            text-align: center;  
+        }  
+  
+        .controls {  
+            display: grid;  
+            grid-template-columns: 1fr 1fr 1fr 1fr;  
+            gap: 10px;  
+            background: rgba(0, 212, 255, 0.05);  
+            padding: 15px;  
+            border-radius: 8px;  
+            border: 1px solid rgba(0, 212, 255, 0.2);  
+            max-width: 680px;  
+        }  
+  
+        .control-group {  
+            display: flex;  
+            flex-direction: column;  
+            gap: 6px;  
+        }  
+  
+        .control-group label {  
+            font-size: 0.8em;  
+            color: #00d4ff;  
+            font-weight: 600;  
+        }  
+  
+        select, button {  
+            padding: 10px 12px;  
+            background: #0099ff;  
+            color: #fff;  
+            border: none;  
+            border-radius: 6px;  
+            cursor: pointer;  
+            font-size: 0.9em;  
+            font-weight: 600;  
+            transition: all 0.3s;  
+        }  
+  
+        select:hover, button:hover {  
+            background: #00d4ff;  
+            transform: translateY(-2px);  
+        }  
+  
+        button.full-width {  
+            grid-column: span 2;  
+        }  
+  
+        button.secondary {  
+            background: #444;  
+        }  
+  
+        button.secondary:hover {  
+            background: #555;  
+        }  
+  
+        .panels-container {  
+            display: grid;  
+            grid-template-columns: 1fr 1fr;  
+            gap: 20px;  
+            flex: 1;  
+            overflow: hidden;  
+            min-height: 0;  
+        }  
+  
+        .stats-panel {  
+            background: rgba(0, 212, 255, 0.05);  
+            border: 1px solid rgba(0, 212, 255, 0.2);  
+            border-radius: 8px;  
+            padding: 20px;  
+            overflow-y: auto;  
+            display: flex;  
+            flex-direction: column;  
+            gap: 15px;  
+        }  
+  
+        .coach-message {  
+            background: rgba(0, 212, 255, 0.1);  
+            border-left: 4px solid #00d4ff;  
+            padding: 12px;  
+            border-radius: 6px;  
+            font-size: 0.9em;  
+            line-height: 1.5;  
+        }  
+  
+        .coach-message strong {  
+            color: #00d4ff;  
+            display: block;  
+            margin-bottom: 5px;  
+        }  
+  
+        .coach-message.good {  
+            border-left-color: #00ff00;  
+            background: rgba(0, 255, 0, 0.05);  
+        }  
+  
+        .coach-message.bad {  
+            border-left-color: #ff0000;  
+            background: rgba(255, 0, 0, 0.05);  
+        }  
+  
+        .last-move-info {  
+            display: grid;  
+            grid-template-columns: 1fr 1fr;  
+            gap: 10px;  
+            font-size: 0.85em;  
+        }  
+  
+        .move-box {  
+            background: rgba(0, 212, 255, 0.1);  
+            padding: 10px;  
+            border-radius: 6px;  
+            text-align: center;  
+            border: 1px solid rgba(0, 212, 255, 0.2);  
+        }  
+  
+        .move-box strong {  
+            color: #00d4ff;  
+            display: block;  
+            font-size: 1.1em;  
+        }  
+  
+        .stats-quick {  
+            display: grid;  
+            grid-template-columns: 1fr 1fr 1fr 1fr;  
+            gap: 8px;  
+            font-size: 0.8em;  
+        }  
+  
+        .stat-quick-box {  
+            background: rgba(0, 212, 255, 0.1);  
+            padding: 10px;  
+            border-radius: 6px;  
+            text-align: center;  
+            border: 1px solid rgba(0, 212, 255, 0.2);  
+        }  
+  
+        .stat-quick-box strong {  
+            color: #00d4ff;  
+            display: block;  
+            font-size: 1.2em;  
+            margin-bottom: 3px;  
+        }  
+  
+        .stat-quick-box span {  
+            font-size: 0.75em;  
+        }  
+  
+        .move-history {  
+            flex: 1;  
+            overflow-y: auto;  
+            background: rgba(255, 255, 255, 0.02);  
+            padding: 12px;  
+            border-radius: 6px;  
+            border: 1px solid rgba(0, 212, 255, 0.2);  
+            font-size: 0.8em;  
+        }  
+  
+        .move-item {  
+            padding: 6px;  
+            background: rgba(0, 212, 255, 0.1);  
+            margin-bottom: 4px;  
+            border-radius: 4px;  
+            border-left: 3px solid #00d4ff;  
+        }  
+  
+        h2 {  
+            font-size: 1.1em;  
+            color: #00d4ff;  
+            margin: 0;  
+        }  
+  
+        h3 {  
+            font-size: 0.95em;  
+            color: #fff;  
+            margin: 0;  
+        }  
+  
+        .opening-info {  
+            background: rgba(0, 212, 255, 0.05);  
+            padding: 10px;  
+            border-radius: 6px;  
+            border-left: 3px solid #00d4ff;  
+            font-size: 0.85em;  
+        }  
+  
+        .analysis-modal {  
+            display: none;  
+            position: fixed;  
+            top: 0;  
+            left: 0;  
+            right: 0;  
+            bottom: 0;  
+            background: rgba(0, 0, 0, 0.9);  
+            z-index: 1000;  
+            align-items: center;  
+            justify-content: center;  
+        }  
+  
+        .analysis-modal.active {  
+            display: flex;  
+        }  
+  
+        .analysis-content {  
+            background: #1e1e2e;  
+            border: 2px solid #00d4ff;  
+            border-radius: 12px;  
+            padding: 30px;  
+            max-width: 900px;  
+            max-height: 85vh;  
+            overflow-y: auto;  
+            width: 90%;  
+        }  
+  
+        .analysis-close {  
+            float: right;  
+            cursor: pointer;  
+            font-size: 32px;  
+            color: #00d4ff;  
+            line-height: 1;  
+            margin-bottom: 15px;  
+        }  
+  
+        .analysis-section {  
+            margin-bottom: 20px;  
+            padding: 15px;  
+            background: rgba(0, 212, 255, 0.05);  
+            border-radius: 8px;  
+            border-left: 3px solid #00d4ff;  
+        }  
+  
+        .analysis-section h3 {  
+            margin-bottom: 10px;  
+            color: #00d4ff;  
+        }  
+  
+        .analysis-grid {  
+            display: grid;  
+            grid-template-columns: 1fr 1fr;  
+            gap: 10px;  
+            margin-top: 10px;  
+        }  
+  
+        .analysis-box {  
+            background: rgba(0, 212, 255, 0.1);  
+            padding: 12px;  
+            border-radius: 6px;  
+            border: 1px solid rgba(0, 212, 255, 0.2);  
+        }  
+  
+        .analysis-box strong {  
+            color: #00ff00;  
+            display: block;  
+            font-size: 1.3em;  
+        }  
+  
+        .loading {  
+            display: inline-block;  
+            width: 20px;  
+            height: 20px;  
+            border: 3px solid #00d4ff;  
+            border-radius: 50%;  
+            border-top-color: transparent;  
+            animation: spin 1s linear infinite;  
+        }  
+  
+        @keyframes spin {  
+            to { transform: rotate(360deg); }  
+        }  
+  
+        @media (max-width: 1400px) {  
+            .chessboard {  
+                width: 500px;  
+                height: 500px;  
+            }  
+  
+            .square {  
+                font-size: 2.5em;  
+            }  
+  
+            .eval-bar-vertical {  
+                height: 500px;  
+            }  
+  
+            .controls {  
+                max-width: 580px;  
+            }  
+        }  
+  
+        @media (max-width: 1200px) {  
+            .main-container {  
+                flex-direction: column;  
+                gap: 15px;  
+                padding: 15px;  
+            }  
+  
+            .board-and-eval {  
+                justify-content: center;  
+            }  
+  
+            .panels-container {  
+                grid-template-columns: 1fr;  
+                gap: 15px;  
+                max-height: 400px;  
+            }  
+  
+            .eval-bar-vertical {  
+                display: none;  
+            }  
+        }  
+  
+        @media (max-width: 768px) {  
+            .chessboard {  
+                width: 100%;  
+                max-width: 450px;  
+                height: auto;  
+                aspect-ratio: 1;  
+            }  
+  
+            .square {  
+                font-size: 2em;  
+            }  
+  
+            .controls {  
+                max-width: 100%;  
+                grid-template-columns: 1fr 1fr;  
+            }  
+  
+            button.full-width {  
+                grid-column: span 2;  
+            }  
+  
+            .eval-bar-vertical {  
+                display: none;  
+            }  
+  
+            .stats-quick {  
+                grid-template-columns: 1fr 1fr;  
+            }  
+  
+            .stats-panel {  
+                padding: 15px;  
+            }  
+        }  
+  
+        ::-webkit-scrollbar {  
+            width: 8px;  
+        }  
+  
+        ::-webkit-scrollbar-track {  
+            background: rgba(0, 212, 255, 0.1);  
+        }  
+  
+        ::-webkit-scrollbar-thumb {  
+            background: #0099ff;  
+            border-radius: 4px;  
+        }  
+  
+        ::-webkit-scrollbar-thumb:hover {  
+            background: #00d4ff;  
+        }  
+    </style>  
+</head>  
+<body>  
+    <div class="header">  
+        <h1>♟️ Entrenador de Ajedrez Profesional</h1>  
+    </div>  
+  
+    <div class="main-container">  
+        <div class="board-section">  
+            <div class="board-and-eval">  
+                <div class="chessboard" id="board"></div>  
+                  
+                <div class="eval-bar-vertical">  
+                    <div class="eval-label">Evaluación</div>  
+                    <div class="eval-bar-container">  
+                        <div class="eval-bar-fill" id="evalBarFill"></div>  
+                    </div>  
+                    <div class="eval-score" id="evalScore">0.0</div>  
+                    <div class="eval-label" style="font-size: 0.6em; margin-top: 5px;">  
+                        <div id="winProb" style="color: #00ff00;">B:50%</div>  
+                    </div>  
+                </div>  
+            </div>  
+              
+            <div class="controls">  
+                <div class="control-group">  
+                    <label>Modo</label>  
+                    <select id="gameMode" onchange="resetGame()">  
+                        <option value="coach">Entrenador</option>  
+                        <option value="vs-ia">vs IA</option>  
+                        <option value="free">Libre</option>  
+                    </select>  
+                </div>  
+                <div class="control-group">  
+                    <label>Nivel</label>  
+                    <select id="difficulty">  
+                        <option value="1">Novato</option>  
+                        <option value="2">Intermedio</option>  
+                        <option value="3" selected>Avanzado</option>  
+                        <option value="4">Experto</option>  
+                        <option value="5">Maestro</option>  
+                    </select>  
+                </div>  
+                <button onclick="resetGame()" class="full-width">🔄 Nueva</button>  
+                <button onclick="requestHint()" class="full-width">💡 Pista</button>  
+            </div>  
+        </div>  
+  
+        <div class="panels-container">  
+            <div class="stats-panel">  
+                <h2>🎯 Entrenador</h2>  
+                  
+                <div id="coachMessage" class="coach-message">  
+                    <strong>¡Bienvenido!</strong>  
+                    Realiza tu primer movimiento. El entrenador te dará consejos.  
+                </div>  
+  
+                <div id="lastMoveInfo" class="last-move-info" style="display: none;">  
+                    <div class="move-box">  
+                        <strong>Tu movimiento:</strong>  
+                        <span id="playerLastMove">-</span>  
+                    </div>  
+                    <div class="move-box">  
+                        <strong>Evaluación:</strong>  
+                        <span id="moveEval">-</span>  
+                    </div>  
+                </div>  
+  
+               <div id="evaluationDisplay" class="analysis-section" style="padding: 10px; margin-top: 15px;">    
+                    <h3>Análisis de Stockfish</h3>    
+                    <p><strong>Score:</strong> <span id="currentScoreDisplay">N/A</span></p>    
+                    <p><strong>Profundidad:</strong> <span id="currentDepthDisplay">N/A</span></p>    
+                    <p><strong>PV:</strong> <span id="currentPVDisplay">N/A</span></p>    
+                    <p><strong>Mejor Movimiento:</strong> <span id="bestMoveSuggestionDisplay">N/A</span></p>    
                 </div>    
-            </div>    
-                
-            <div class="controls">    
-                <div class="control-group">    
-                    <label>Modo</label>    
-                    <select id="gameMode" onchange="resetGame()">    
-                        <option value="coach">Entrenador</option>    
-                        <option value="vs-ia">vs IA</option>    
-                        <option value="free">Libre</option>    
-                    </select>    
-                </div>    
-                <div class="control-group">    
-                    <label>Nivel</label>    
-                    <select id="difficulty">    
-                        <option value="1">Novato</option>    
-                        <option value="2">Intermedio</option>    
-                        <option value="3" selected>Avanzado</option>    
-                        <option value="4">Experto</option>    
-                        <option value="5">Maestro</option>    
-                    </select>    
-                </div>    
-                <button onclick="resetGame()" class="full-width">🔄 Nueva</button>    
-                <button onclick="requestHint()" class="full-width">💡 Pista</button>    
-            </div>    
-        </div>    
+  
+                <div class="stats-quick">  
+                    <div class="stat-quick-box">  
+                        <strong id="moveCount">0</strong>  
+                        <span>Movs</span>  
+                    </div>  
+                    <div class="stat-quick-box">  
+                        <strong id="accuracy">0%</strong>  
+                        <span>Precisión</span>  
+                    </div>  
+                    <div class="stat-quick-box">  
+                        <strong id="goodMoves">0</strong>  
+                        <span>Buenos</span>  
+                    </div>  
+                    <div class="stat-quick-box">  
+                        <strong id="badMoves">0</strong>  
+                        <span>Errores</span>  
+                    </div>  
+                </div>  
+  
+                <div id="openingInfo" class="opening-info" style="display: none;">  
+                    <strong>📖 Apertura:</strong> <span id="openingName">-</span>  
+                </div>  
+  
+                <div style="margin-top: auto; display: flex; gap: 10px;">  
+                    <button onclick="undoMove()" class="secondary" style="flex: 1;">↶ Deshacer</button>  
+                    <button onclick="flipBoard()" class="secondary" style="flex: 1;">🔄 Girar</button>  
+                </div>  
+            </div>  
+  
+            <div class="stats-panel">  
+                <h2>📜 Movimientos</h2>  
+                <div class="move-history" id="moveHistory">  
+                    <p style="color: #888; text-align: center;">Movimientos aquí...</p>  
+                </div>  
+  
+                <h2>📊 Estadísticas</h2>  
+                <div class="stats-quick">  
+                    <div class="stat-quick-box">  
+                        <strong id="totalGames">0</strong>  
+                        <span>Partidas</span>  
+                    </div>  
+                    <div class="stat-quick-box">  
+                        <strong id="maxElo">1600</strong>  
+                        <span>ELO Máx</span>  
+                    </div>  
+                    <div class="stat-quick-box">  
+                        <strong id="currentElo">1600</strong>  
+                        <span>ELO Actual</span>  
+                    </div>  
+                    <div class="stat-quick-box">  
+                        <strong id="sessions">0</strong>  
+                        <span>Sessions</span>  
+                    </div>  
+                </div>  
+  
+                <button onclick="analysisMode()" class="secondary" style="width: 100%; margin-top: 10px;">📊 Análisis</button>  
+            </div>  
+        </div>  
+    </div>  
+  
+    <div class="analysis-modal" id="analysisModal">  
+        <div class="analysis-content">  
+            <span class="analysis-close" onclick="closeAnalysis()">&times;</span>  
+            <h2 style="margin-bottom: 20px;">📊 Análisis Detallado de la Posición</h2>  
+              
+            <div class="analysis-section">  
+                <h3>🎲 Probabilidades de Resultado</h3>  
+                <div class="analysis-grid">  
+                    <div class="analysis-box">  
+                        <strong id="whiteWinProb">-</strong>  
+                        <span>Blancas Ganan</span>  
+                    </div>  
+                    <div class="analysis-box">  
+                        <strong id="drawProb">-</strong>  
+                        <span>Tablas</span>  
+                    </div>  
+                    <div class="analysis-box">  
+                        <strong id="blackWinProb">-</strong>  
+                        <span>Negras Ganan</span>  
+                    </div>  
+                    <div class="analysis-box">  
+                        <strong id="anyWinProb">-</strong  
+                        ><span>Decisivo</span>  
+                    </div>  
+                </div>  
+            </div>  
+  
+            <div class="analysis-section">  
+                <h3>🔍 Evaluación Actual</h3>  
+                <p><strong>Puntuación:</strong> <span id="currentScore">-</span></p>  
+                <p><strong>Mejor movimiento:</strong> <span id="bestMoveAnalysis">-</span></p>  
+                <p><strong>Profundidad:</strong> <span id="analysisDepth">-</span></p>  
+            </div>  
+  
+            <div class="analysis-section">  
+                <h3>⚠️ Evaluación por Fases del Juego</h3>  
+                <div class="analysis-grid">  
+                    <div class="analysis-box">  
+                        <strong id="openingEval">-</strong>  
+                        <span>Apertura</span>  
+                    </div>  
+                    <div class="analysis-box">  
+                        <strong id="middlegameEval">-</strong>  
+                        <span>Medio Juego</span>  
+                    </div>  
+                    <div class="analysis-box">  
+                        <strong id="endgameEval">-</strong>  
+                        <span>Final</span>  
+                    </div>  
+                    <div class="analysis-box">  
+                        <strong id="materialEval">-</strong>  
+                        <span>Material</span>  
+                    </div>  
+                </div>  
+            </div>  
+  
+            <div class="analysis-section">  
+                <h3>📈 Línea Principal (Variante Principal)</h3>  
+                <p id="principalVariation" style="color: #00d4ff; font-style: italic;">-</p>  
+            </div>  
+  
+            <div style="text-align: center; margin-top: 20px;">  
+                <div class="loading" id="analysisLoading"></div>  
+                <p id="analysisStatus" style="color: #00d4ff; margin-top: 10px;">Analizando posición...</p>  
+            </div>  
+        </div>  
+    </div>  
+  
+    <!-- CARGA DE SCRIPTS - ¡ORDEN IMPORTA! -->    
+    <!-- 1. Bibliotecas de terceros (Chess.js) -->    
+    <!-- 2. Archivo del motor Stockfish (stockfish.js) -->    
+    <!-- 3. Tu lógica de IA que usa Stockfish (stockfish-ai.js) -->    
+    <!-- 4. Tu lógica principal del juego (game.js) -->    
+    <!-- 5. Tu script de inicialización DOM -->    
     
-        <div class="panels-container">    
-            <div class="stats-panel">    
-                <h2>🎯 Entrenador</h2>    
-                    
-                <div id="coachMessage" class="coach-message">    
-                    <strong>¡Bienvenido!</strong>    
-                    Realiza tu primer movimiento. El entrenador te dará consejos.    
-                </div>    
-    
-                <div id="lastMoveInfo" class="last-move-info" style="display: none;">    
-                    <div class="move-box">    
-                        <strong>Tu movimiento:</strong>    
-                        <span id="playerLastMove">-</span>    
-                    </div>    
-                    <div class="move-box">    
-                        <strong>Evaluación:</strong>    
-                        <span id="moveEval">-</span>    
-                    </div>    
-                </div>    
-    
-               <div id="evaluationDisplay" class="analysis-section" style="padding: 10px; margin-top: 15px;">      
-                    <h3>Análisis de Stockfish</h3>      
-                    <p><strong>Score:</strong> <span id="currentScoreDisplay">N/A</span></p>      
-                    <p><strong>Profundidad:</strong> <span id="currentDepthDisplay">N/A</span></p>      
-                    <p><strong>PV:</strong> <span id="currentPVDisplay">N/A</span></p>      
-                    <p><strong>Mejor Movimiento:</strong> <span id="bestMoveSuggestionDisplay">N/A</span></p>      
-                </div>      
-    
-                <div class="stats-quick">    
-                    <div class="stat-quick-box">    
-                        <strong id="moveCount">0</strong>    
-                        <span>Movs</span>    
-                    </div>    
-                    <div class="stat-quick-box">    
-                        <strong id="accuracy">0%</strong>    
-                        <span>Precisión</span>    
-                    </div>    
-                    <div class="stat-quick-box">    
-                        <strong id="goodMoves">0</strong>    
-                        <span>Buenos</span>    
-                    </div>    
-                    <div class="stat-quick-box">    
-                        <strong id="badMoves">0</strong>    
-                        <span>Errores</span>    
-                    </div>    
-                </div>    
-    
-                <div id="openingInfo" class="opening-info" style="display: none;">    
-                    <strong>📖 Apertura:</strong> <span id="openingName">-</span>    
-                </div>    
-    
-                <div style="margin-top: auto; display: flex; gap: 10px;">    
-                    <button onclick="undoMove()" class="secondary" style="flex: 1;">↶ Deshacer</button>    
-                    <button onclick="flipBoard()" class="secondary" style="flex: 1;">🔄 Girar</button>    
-                </div>    
-            </div>    
-    
-            <div class="stats-panel">    
-                <h2>📜 Movimientos</h2>    
-                <div class="move-history" id="moveHistory">    
-                    <p style="color: #888; text-align: center;">Movimientos aquí...</p>    
-                </div>    
-    
-                <h2>📊 Estadísticas</h2>    
-                <div class="stats-quick">    
-                    <div class="stat-quick-box">    
-                        <strong id="totalGames">0</strong>    
-                        <span>Partidas</span>    
-                    </div>    
-                    <div class="stat-quick-box">    
-                        <strong id="maxElo">1600</strong>    
-                        <span>ELO Máx</span>    
-                    </div>    
-                    <div class="stat-quick-box">    
-                        <strong id="currentElo">1600</strong>    
-                        <span>ELO Actual</span>    
-                    </div>    
-                    <div class="stat-quick-box">    
-                        <strong id="sessions">0</strong>    
-                        <span>Sessions</span>    
-                    </div>    
-                </div>    
-    
-                <button onclick="analysisMode()" class="secondary" style="width: 100%; margin-top: 10px;">📊 Análisis</button>    
-            </div>    
-        </div>    
-    </div>    
-    
-    <div class="analysis-modal" id="analysisModal">    
-        <div class="analysis-content">    
-            <span class="analysis-close" onclick="closeAnalysis()">&times;</span>    
-            <h2 style="margin-bottom: 20px;">📊 Análisis Detallado de la Posición</h2>    
-                
-            <div class="analysis-section">    
-                <h3>🎲 Probabilidades de Resultado</h3>    
-                <div class="analysis-grid">    
-                    <div class="analysis-box">    
-                        <strong id="whiteWinProb">-</strong>    
-                        <span>Blancas Ganan</span>    
-                    </div>    
-                    <div class="analysis-box">    
-                        <strong id="drawProb">-</strong>    
-                        <span>Tablas</span>    
-                    </div>    
-                    <div class="analysis-box">    
-                        <strong id="blackWinProb">-</strong>    
-                        <span>Negras Ganan</span>    
-                    </div>    
-                    <div class="analysis-box">    
-                        <strong id="anyWinProb">-</strong    
-                        ><span>Decisivo</span>    
-                    </div>    
-                </div>    
-            </div>    
-    
-            <div class="analysis-section">    
-                <h3>🔍 Evaluación Actual</h3>    
-                <p><strong>Puntuación:</strong> <span id="currentScore">-</span></p>    
-                <p><strong>Mejor movimiento:</strong> <span id="bestMoveAnalysis">-</span></p>    
-                <p><strong>Profundidad:</strong> <span id="analysisDepth">-</span></p>    
-            </div>    
-    
-            <div class="analysis-section">    
-                <h3>⚠️ Evaluación por Fases del Juego</h3>    
-                <div class="analysis-grid">    
-                    <div class="analysis-box">    
-                        <strong id="openingEval">-</strong>    
-                        <span>Apertura</span>    
-                    </div>    
-                    <div class="analysis-box">    
-                        <strong id="middlegameEval">-</strong>    
-                        <span>Medio Juego</span>    
-                    </div>    
-                    <div class="analysis-box">    
-                        <strong id="endgameEval">-</strong>    
-                        <span>Final</span>    
-                    </div>    
-                    <div class="analysis-box">    
-                        <strong id="materialEval">-</strong>    
-                        <span>Material</span>    
-                    </div>    
-                </div>    
-            </div>    
-    
-            <div class="analysis-section">    
-                <h3>📈 Línea Principal (Variante Principal)</h3>    
-                <p id="principalVariation" style="color: #00d4ff; font-style: italic;">-</p>    
-            </div>    
-    
-            <div style="text-align: center; margin-top: 20px;">    
-                <div class="loading" id="analysisLoading"></div>    
-                <p id="analysisStatus" style="color: #00d4ff; margin-top: 10px;">Analizando posición...</p>    
-            </div>    
-        </div>    
-    </div>    
-    
-    <!-- CARGA DE SCRIPTS - ¡ORDEN IMPORTA! -->      
-    <!-- 1. Bibliotecas de terceros (Chess.js) -->      
-    <!-- 2. Tu lógica de IA que usa Stockfish (stockfish-ai.js) -->      
-    <!-- 3. Tu lógica principal del juego (game.js) -->      
-    <!-- 4. Tu script de inicialización DOM -->      
+    <!-- 1. Carga de Chess.js desde CDN -->  
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/chess.js/0.10.3/chess.min.js"></script>    
       
-    <!-- 1. Carga de Chess.js desde CDN -->    
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/chess.js/0.10.3/chess.min.js"></script>      
+    <!-- 2. Carga del archivo local de Stockfish -->  
+    <script src="js/stockfish.js"></script>    
+      
+    <!-- 3. Tu lógica de IA que usa Stockfish -->  
+    <script src="js/stockfish-ai.js"></script>      
+      
+    <!-- 4. Tu lógica principal del juego -->  
+    <script src="js/game.js"></script>      
         
-    <!-- Ya no se carga stockfish.js directamente aquí -->  
-        
-    <!-- 2. Tu lógica de IA que usa Stockfish -->    
-    <script src="js/stockfish-ai.js"></script>        
-        
-    <!-- 3. Tu lógica principal del juego -->    
-    <script src="js/game.js"></script>        
-          
-    <!-- 4. Tu script de inicialización DOM (que está dentro de tu HTML) -->    
-    <script>        
-        document.addEventListener('DOMContentLoaded', async () => {      
-            await initializeStockfishEngine();      
-            renderBoard();                       
-            await updateUI();                    
-        });          
-    </script>          
-</body>          
-</html>  
+    <!-- 5. Tu script de inicialización DOM (que está dentro de tu HTML) -->  
+    <script>      
+        document.addEventListener('DOMContentLoaded', async () => {    
+            // Asegúrate de que initializeStockfishEngine y renderBoard se ejecuten antes que updateUI    
+            await initializeStockfishEngine(); // Inicializa Stockfish (de stockfish-ai.js)    
+            renderBoard();                     // Renderiza el tablero (de game.js)    
+            await updateUI();                  // Actualiza la UI, que ahora incluye la primera evaluación de Stockfish (de game.js, llama a stockfish-ai.js)    
+        });        
+    </script>        
+</body>        
+</html>
