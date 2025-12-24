@@ -58,28 +58,31 @@ async function initializeStockfishEngine() {
         console.log('Iniciando Stockfish...');
         console.log('Tipo de StockfishMv:', typeof window.StockfishMv);
         
-        // StockfishMv es una función que retorna una promesa
-        // Necesitamos obtener la instancia correctamente
-        if (window.StockfishMv && window.StockfishMv.ready) {
-            console.log('Esperando a que Stockfish.ready se resuelva...');
-            await window.StockfishMv.ready;
+        // StockfishMv es una función, necesitamos llamarla
+        if (!window.StockfishMv || typeof window.StockfishMv !== 'function') {
+            throw new Error('StockfishMv no es una función válida');
         }
         
-        // La instancia de Stockfish es StockfishMv mismo
-        engine = window.StockfishMv;
+        console.log('Llamando a StockfishMv()...');
+        // Llamar a StockfishMv como función constructora
+        engine = window.StockfishMv();
         
         if (!engine) {
-            throw new Error('StockfishMv no está disponible');
+            throw new Error('StockfishMv() no retornó una instancia');
         }
 
         console.log('✅ Motor Stockfish obtenido:', typeof engine);
+        console.log('Métodos disponibles:', Object.keys(engine));
 
         // Registrar el listener para mensajes de Stockfish
         if (typeof engine.addMessageListener === 'function') {
             engine.addMessageListener(handleStockfishMessage);
             console.log('✅ Message listener registrado');
+        } else if (engine.onmessage !== undefined) {
+            engine.onmessage = handleStockfishMessage;
+            console.log('✅ onmessage asignado');
         } else {
-            console.warn('addMessageListener no disponible');
+            console.warn('⚠️ No hay forma de registrar listener');
         }
 
         // Establecer engineReady a true
@@ -120,7 +123,20 @@ function sendStockfishCommand(command) {
     }
     
     console.log('🔵 Enviando a Stockfish:', command);
-    engine.postMessage(command);
+    
+    // Intentar postMessage primero
+    if (typeof engine.postMessage === 'function') {
+        engine.postMessage(command);
+    } 
+    // Si no, intentar ccall
+    else if (typeof engine.ccall === 'function') {
+        console.log('Usando ccall en lugar de postMessage');
+        engine.ccall('uci_command', 'number', ['string'], [command]);
+    }
+    // Si no, es un error
+    else {
+        console.error('engine no tiene postMessage ni ccall. Métodos:', Object.keys(engine).slice(0, 10));
+    }
 }
 
 // ===================== EVALUAR CON STOCKFISH REAL =====================  
