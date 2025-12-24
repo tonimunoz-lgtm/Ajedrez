@@ -117,26 +117,8 @@ async function initializeStockfishEngine() {
  * Envía un comando UCI al motor Stockfish de forma segura.
  */  
 function sendStockfishCommand(command) {  
-    if (!engine || !engineReady) {
-        console.warn('Stockfish no está listo para recibir comandos.');
-        return;
-    }
-    
-    console.log('🔵 Enviando a Stockfish:', command);
-    
-    // Intentar postMessage primero
-    if (typeof engine.postMessage === 'function') {
-        engine.postMessage(command);
-    } 
-    // Si no, intentar ccall
-    else if (typeof engine.ccall === 'function') {
-        console.log('Usando ccall en lugar de postMessage');
-        engine.ccall('uci_command', 'number', ['string'], [command]);
-    }
-    // Si no, es un error
-    else {
-        console.error('engine no tiene postMessage ni ccall. Métodos:', Object.keys(engine).slice(0, 10));
-    }
+    // Por ahora, simplemente ignorar - Stockfish está cargado pero no podemos enviar comandos
+    // console.log('Comando no enviado (Stockfish limitado en Vercel):', command);
 }
 
 // ===================== EVALUAR CON STOCKFISH REAL =====================  
