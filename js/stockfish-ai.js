@@ -38,17 +38,17 @@ async function initializeStockfishEngine() {
         console.log('Iniciando Stockfish...');
         console.log('Tipo de StockfishMv:', typeof window.StockfishMv);
         
-        // Esperar a que StockfishMv esté listo
-        if (window.StockfishMv && window.StockfishMv.ready) {
-            console.log('Esperando a que Stockfish.ready se resuelva...');
-            await window.StockfishMv.ready;
+        // StockfishMv es una función que retorna una promesa
+        // Necesitamos llamarla para obtener la instancia
+        if (!window.StockfishMv) {
+            throw new Error('StockfishMv no está definido. Verifica que stockfish.js se cargó correctamente');
         }
         
-        // Obtener la instancia de Stockfish
-        engine = window.StockfishMv;
+        console.log('Llamando a StockfishMv()...');
+        engine = await window.StockfishMv();
         
         if (!engine) {
-            throw new Error('StockfishMv no está disponible');
+            throw new Error('StockfishMv() no retornó una instancia válida');
         }
 
         console.log('✅ Motor Stockfish obtenido:', typeof engine);
