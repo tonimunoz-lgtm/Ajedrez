@@ -33,57 +33,62 @@ function stockfishMessageListener(message) {
  * Inicializa el motor Stockfish. Debe llamarse después de que 'stockfish.js'  
  * se haya cargado y el DOM esté listo (DOMContentLoaded).
  */  
-async function initializeStockfishEngine() {  
-    try {
-        console.log('Iniciando Stockfish...');
-        console.log('Tipo de StockfishMv:', typeof window.StockfishMv);
-        
-        // Esperar a que StockfishMv esté listo
-        if (window.StockfishMv && window.StockfishMv.ready) {
-            console.log('Esperando a que Stockfish.ready se resuelva...');
-            await window.StockfishMv.ready;
-        }
-        
-        // Obtener la instancia de Stockfish
-        engine = window.StockfishMv;
-        
-        if (!engine) {
-            throw new Error('StockfishMv no está disponible');
-        }
-
-        console.log('✅ Motor Stockfish obtenido:', typeof engine);
-
-        // Asignar el listener global inmediatamente
-        engine.onmessage = stockfishMessageListener;
-
-        // Establecer engineReady a true
-        engineReady = true;
-        window.engineReady = true;
-
-        console.log('✅ Stockfish WASM cargado y listo.');
-
-        const coachMessageElem = document.getElementById('coachMessage');
-        if (coachMessageElem) {
-            coachMessageElem.innerHTML = '<strong>✅ Stockfish Real</strong> Motor profesional activado.';
-        }
-
-        // Comandos UCI iniciales para configurar el motor
-        sendStockfishCommand('uci');
-        sendStockfishCommand('isready');
-        sendStockfishCommand('ucinewgame');
-
-    } catch (e) {
-        console.error('❌ Error inicializando Stockfish:', e);
-        engineReady = false;
-        window.engineReady = false;
-
-        const coachMessageElem = document.getElementById('coachMessage');
-        if (coachMessageElem) {
-            coachMessageElem.innerHTML = '<strong>⚠️ Stockfish No Disponible</strong> Usando análisis local. Error: ' + e.message;
-        }
-    }
+async function initializeStockfishEngine() {    
+    try {  
+        console.log('Iniciando Stockfish...');  
+        console.log('Tipo de window.StockfishMv antes de instanciar:', typeof window.StockfishMv);  
+          
+        // **CORRECCIÓN CLAVE AQUÍ:**  
+        // Asumiendo que window.StockfishMv es la función constructora para el Web Worker.  
+        // Debes llamarla para obtener la INSTANCIA del worker.  
+        if (typeof window.StockfishMv === 'function') {  
+            engine = window.StockfishMv(); // ¡Aquí creamos la instancia del Worker!  
+            console.log('✅ Instancia de Stockfish Worker creada.');  
+        } else if (window.StockfishMv && typeof window.StockfishMv.postMessage === 'function') {  
+            // En algunos casos (menos comunes), StockfishMv ya podría ser la instancia del worker.  
+            engine = window.StockfishMv;  
+            console.log('✅ StockfishMv ya es la instancia del Worker.');  
+        } else {  
+            throw new Error('window.StockfishMv no es una función para crear el worker, ni una instancia de worker válida.');  
+        }  
+  
+        if (!engine || typeof engine.postMessage !== 'function') {  
+            throw new Error('El objeto "engine" no es una instancia de Worker válida o no tiene el método postMessage.');  
+        }  
+  
+        console.log('✅ Motor Stockfish obtenido y verificado.');  
+  
+        // Asignar el listener global inmediatamente  
+        // Este listener será el 'default' cuando evaluateWithStockfish no esté activo.  
+        engine.onmessage = stockfishMessageListener;  
+  
+        // Establecer engineReady a true  
+        engineReady = true;  
+        window.engineReady = true; // Para acceso global si es necesario  
+  
+        console.log('✅ Stockfish WASM cargado y listo.');  
+  
+        const coachMessageElem = document.getElementById('coachMessage');  
+        if (coachMessageElem) {  
+            coachMessageElem.innerHTML = '<strong>✅ Stockfish Real</strong> Motor profesional activado.';  
+        }  
+  
+        // Comandos UCI iniciales para configurar el motor  
+        sendStockfishCommand('uci');  
+        sendStockfishCommand('isready');  
+        sendStockfishCommand('ucinewgame');  
+  
+    } catch (e) {  
+        console.error('❌ Error inicializando Stockfish:', e);  
+        engineReady = false;  
+        window.engineReady = false;  
+  
+        const coachMessageElem = document.getElementById('coachMessage');  
+        if (coachMessageElem) {  
+            coachMessageElem.innerHTML = '<strong>⚠️ Stockfish No Disponible</strong> Usando análisis local. Error: ' + e.message;  
+        }  
+    }  
 }
-
 /**  
  * Envía un comando UCI al motor Stockfish de forma segura.
  */  
