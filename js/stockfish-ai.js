@@ -45,7 +45,8 @@ async function initializeStockfishEngine() {
         }
         
         // Obtener la instancia de Stockfish
-        engine = window.StockfishMv;
+        //engine = window.StockfishMv;
+        const engine = StockfishMv();
         
         if (!engine) {
             throw new Error('StockfishMv no está disponible');
