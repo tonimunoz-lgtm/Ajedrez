@@ -39,22 +39,26 @@ async function initializeStockfishEngine() {
         console.log('Tipo de StockfishMv:', typeof window.StockfishMv);
         
         // StockfishMv es una función que retorna una promesa
-        // Necesitamos llamarla para obtener la instancia
-        if (!window.StockfishMv) {
-            throw new Error('StockfishMv no está definido. Verifica que stockfish.js se cargó correctamente');
+        // Necesitamos obtener la instancia correctamente
+        if (window.StockfishMv && window.StockfishMv.ready) {
+            console.log('Esperando a que Stockfish.ready se resuelva...');
+            await window.StockfishMv.ready;
         }
         
-        console.log('Llamando a StockfishMv()...');
-        engine = await window.StockfishMv();
+        // La instancia de Stockfish es StockfishMv mismo
+        engine = window.StockfishMv;
         
         if (!engine) {
-            throw new Error('StockfishMv() no retornó una instancia válida');
+            throw new Error('StockfishMv no está disponible');
         }
 
         console.log('✅ Motor Stockfish obtenido:', typeof engine);
 
-        // Asignar el listener global inmediatamente
-        engine.onmessage = stockfishMessageListener;
+        // Usar addMessageListener en lugar de onmessage
+        if (typeof engine.addMessageListener === 'function') {
+            engine.addMessageListener(stockfishMessageListener);
+            console.log('✅ Message listener añadido');
+        }
 
         // Establecer engineReady a true
         engineReady = true;
@@ -93,12 +97,8 @@ function sendStockfishCommand(command) {
         return;
     }
     
-    if (typeof engine.postMessage === 'function') {
-        console.log('Enviando comando:', command);
-        engine.postMessage(command);
-    } else {
-        console.warn('engine.postMessage no es una función');
-    }
+    console.log('Enviando comando:', command);
+    engine.postMessage(command);
 }
 
 // ===================== EVALUAR CON STOCKFISH REAL =====================  
