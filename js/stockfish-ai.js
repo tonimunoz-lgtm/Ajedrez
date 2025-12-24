@@ -30,6 +30,26 @@ function stockfishMessageListener(message) {
 }
 
 /**  
+ * Handler de mensajes para StockfishMv (recibe strings directamente)
+ */
+function handleStockfishMessage(message) {
+    const data = typeof message === 'string' ? message : message;
+    console.log('📨 Mensaje de Stockfish:', data);
+    
+    if (data === 'readyok') {  
+        console.log('✅ Stockfish reporta readyok.');  
+    }
+    else if (data.startsWith('bestmove')) {  
+        if (currentStockfishResolve) {  
+            const match = data.match(/bestmove (\S+)/);  
+            const bestMove = match ? match[1] : null;  
+            currentStockfishResolve({ bestMove: bestMove });  
+            currentStockfishResolve = null;  
+        }  
+    }
+}
+
+/**  
  * Inicializa el motor Stockfish. Debe llamarse después de que 'stockfish.js'  
  * se haya cargado y el DOM esté listo (DOMContentLoaded).
  */  
@@ -54,10 +74,12 @@ async function initializeStockfishEngine() {
 
         console.log('✅ Motor Stockfish obtenido:', typeof engine);
 
-        // Usar addMessageListener en lugar de onmessage
+        // Registrar el listener para mensajes de Stockfish
         if (typeof engine.addMessageListener === 'function') {
-            engine.addMessageListener(stockfishMessageListener);
-            console.log('✅ Message listener añadido');
+            engine.addMessageListener(handleStockfishMessage);
+            console.log('✅ Message listener registrado');
+        } else {
+            console.warn('addMessageListener no disponible');
         }
 
         // Establecer engineReady a true
@@ -97,7 +119,7 @@ function sendStockfishCommand(command) {
         return;
     }
     
-    console.log('Enviando comando:', command);
+    console.log('🔵 Enviando a Stockfish:', command);
     engine.postMessage(command);
 }
 
