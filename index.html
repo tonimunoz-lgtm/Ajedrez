@@ -745,21 +745,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/chess.js/0.10.3/chess.min.js"></script>    
     
     <!-- 2. CONFIGURAR STOCKFISH ANTES DE CARGARLO -->
-    <script>
-        // ✅ ESTO VA AQUI - Configurar la ubicación de stockfish.wasm ANTES de cargar stockfish.js
-        if (typeof window !== 'undefined') {
-            window.StockfishMv = window.StockfishMv || {};
-            // Fuerza la ruta correcta para stockfish.wasm
-            window.StockfishMv.locateFile = function(path) {
-                console.log('Buscando archivo:', path);
-                // Si es el archivo .wasm, devolveremos la ruta correcta
-                if (path.includes('.wasm')) {
-                    return '/js/stockfish.wasm';
-                }
-                return path;
-            };
-        }
-    </script>
+   
     
     <!-- 3. Carga del archivo local de Stockfish -->  
     <script src="/js/stockfish.js"></script>    
