@@ -170,8 +170,6 @@ async function handleSquareClick(square) {
             highlights = game.moves({ square, verbose: true }).map(m => m.to);  
         } else {  
             // Intentar realizar el movimiento  
-            const playerColor = selectedPiece.color; // Capturar el color del jugador antes de que se mueva  
-  
             // Intentar con promoción a reina por defecto (chess.js la gestiona automáticamente si es necesaria)  
             const tempMove = { from: selectedSquare, to: square, promotion: 'q' };  
             const move = game.move(tempMove);  
@@ -185,7 +183,9 @@ async function handleSquareClick(square) {
                 highlights = [];  
   
                 // Evaluar la calidad del movimiento del jugador (asíncrono)  
-                await evaluateMoveQuality(move);  
+                if (mode === 'coach' || mode === 'vs-ia') { // Solo evaluar si estamos en modo entrenador o vs IA  
+                    await evaluateMoveQuality(move);  
+                }  
   
                 // Si estamos en modo IA o entrenador y el juego no ha terminado  
                 if ((mode === 'vs-ia' || mode === 'coach') && !game.game_over()) {  
@@ -249,7 +249,7 @@ async function evaluateMoveQuality(playerMove) {
   
     // Determinar el color del jugador que acaba de hacer el movimiento  
     // Obtenemos el color de la pieza que se movió, ya que game.turn() ya ha cambiado.  
-    const playerColor = playerMove.color;   
+    const playerColor = playerMove.color;  
   
     // Obtener la evaluación ANTES del movimiento del jugador  
     game.undo(); // Deshacer el movimiento del jugador para volver a la posición anterior  
@@ -276,13 +276,13 @@ async function evaluateMoveQuality(playerMove) {
   
     // Definir umbrales para clasificar la calidad del movimiento  
     let quality = 'good'; // Por defecto  
-    if (scoreDifference > 1.0) { // Mejoró significativamente (ej. +1 peón)  
+    if (scoreDifference > 100) { // Mejoró significativamente (+1 peón, centipeones)  
         quality = 'excellent';  
-    } else if (scoreDifference > 0.2) { // Mejoró ligeramente (ej. +0.2 peones)  
+    } else if (scoreDifference > 20) { // Mejoró ligeramente (+0.2 peones, centipeones)  
         quality = 'good';  
-    } else if (scoreDifference < -0.2 && scoreDifference >= -0.8) { // Empeoró un poco (entre -0.2 y -0.8 peones)  
+    } else if (scoreDifference < -20 && scoreDifference >= -80) { // Empeoró un poco (entre -0.2 y -0.8 peones, centipeones)  
         quality = 'mistake';  
-    } else if (scoreDifference < -0.8) { // Empeoró mucho (más de -0.8 peones)  
+    } else if (scoreDifference < -80) { // Empeoró mucho (más de -0.8 peones, centipeones)  
         quality = 'blunder';  
     } else {  
         quality = 'good'; // Si el cambio es muy pequeño, se considera un movimiento neutral o bueno  
@@ -329,9 +329,9 @@ function giveCoachFeedback(type, message = null) {
         className += ' bad';  
     } else if (type === 'hint') {  
         icon = '💡';  
-        className += ' good'; // Podrías tener una clase 'hint' específica para estilos  
+        className += ' hint'; // Clase específica para las pistas  
     }  
-        
+  
     coachMsg.innerHTML = `<strong>${icon}</strong> ${phrase}`;  
     coachMsg.className = className; // Aplicar las clases  
 }  
@@ -345,8 +345,8 @@ function giveCoachFeedback(type, message = null) {
  */  
 async function updateUI() {  
     renderBoard(); // Redibujar el tablero  
-    // Llamada a la función global de stockfish-ai.js para actualizar la evaluación en el panel lateral  
-    //await window.updateEvaluationDisplay();   
+    // LLAMADA NECESARIA PARA ACTUALIZAR EL PANEL DE EVALUACIÓN  
+    await window.updateEvaluationDisplay();  
     updateLastMoveInfo(); // Actualizar información del último movimiento  
     updateMoveHistory(); // Actualizar historial de movimientos  
     updateStats(); // Actualizar estadísticas rápidas  
@@ -359,7 +359,7 @@ async function updateUI() {
 /**  
  * Actualiza visualmente la barra de evaluación vertical y el score numérico.  
  * Esta función es llamada por `window.updateEvaluationDisplay()` (en `stockfish-ai.js`).  
- * @param {number} score - El score de Stockfish actual de la posición.  
+ * @param {number} score - El score de Stockfish actual de la posición (en centipeones, desde la perspectiva de las blancas).  
  */  
 function updateEvalBar(score) {  
     const prob = calculateWinProbability(score);  
@@ -367,13 +367,18 @@ function updateEvalBar(score) {
     // Mapear el score a un porcentaje para la altura de la barra.  
     // Un score de 1000 (10 peones) se considera una ventaja muy grande.  
     const maxScore = 1000;  
-    let percentage = 50 + (score / (maxScore * 2)) * 100; // Normalizar a un rango de 0-100%  
+    // Si es el turno de negras, invertimos el score para la barra visual, pero mantenemos el valor original para prob.  
+    const scoreForBar = game.turn() === 'b' ? -score : score;  
+  
+    let percentage = 50 + (scoreForBar / (maxScore * 2)) * 100; // Normalizar a un rango de 0-100%  
     percentage = Math.min(100, Math.max(0, percentage)); // Asegurarse de que esté entre 0 y 100  
   
     const fillEl = document.getElementById('evalBarFill');  
     if(fillEl) {  
         fillEl.style.height = percentage + '%';  
-        fillEl.textContent = Math.abs(score).toFixed(1); // Muestra el valor absoluto de la puntuación en peones  
+        // Mostrar el valor absoluto de la puntuación en peones  
+        // Dividir por 100 para convertir de centipeones a peones  
+        fillEl.textContent = (Math.abs(score) / 100).toFixed(1);  
         fillEl.className = 'eval-bar-fill'; // Resetear clases  
         if (score > 50) { // Ventaja de blancas (+0.5 peones)  
             fillEl.classList.add('white-advantage');  
@@ -383,10 +388,11 @@ function updateEvalBar(score) {
     } else {  
         console.warn("Elemento 'evalBarFill' no encontrado.");  
     }  
-      
+  
     const evalScoreEl = document.getElementById('evalScore');  
     if(evalScoreEl) {  
-        evalScoreEl.textContent = score.toFixed(2);  
+        // Mostrar la puntuación en peones  
+        evalScoreEl.textContent = (score / 100).toFixed(2);  
     } else {  
         console.warn("Elemento 'evalScore' no encontrado.");  
     }  
@@ -417,7 +423,7 @@ function updateLastMoveInfo() {
     el.style.display = 'grid';  
     const history = game.history({ verbose: true });  
     const lastMove = history[history.length - 1];  
-      
+  
     const playerLastMoveEl = document.getElementById('playerLastMove');  
     if (playerLastMoveEl) {  
         playerLastMoveEl.textContent = lastMove?.san || '-';  
@@ -427,7 +433,8 @@ function updateLastMoveInfo() {
   
     const moveEvalEl = document.getElementById('moveEval');  
     if (moveEvalEl) {  
-        moveEvalEl.textContent = currentStockfishScore.toFixed(2);  
+        // Mostrar la puntuación en peones  
+        moveEvalEl.textContent = (currentStockfishScore / 100).toFixed(2);  
     } else {  
         console.warn("Elemento 'moveEval' no encontrado.");  
     }  
@@ -466,7 +473,7 @@ function updateMoveHistory() {
     }  
     // Añadir el último turno (siempre habrá uno si history.length > 0)  
     historyEl.innerHTML += `<div class="move-item">${moveNum-1}. ${turnMoves}</div>`;  
-      
+  
     // Scroll automático al final del historial  
     historyEl.scrollTop = historyEl.scrollHeight;  
 }  
@@ -499,21 +506,28 @@ function updateStats() {
  */  
 function showGameOver() {  
     let message = '';  
+    let className = 'good'; // Clase por defecto para Game Over  
+  
     if (game.in_checkmate()) {  
         message = `¡Jaque Mate! ${game.turn() === 'w' ? 'Negras' : 'Blancas'} ganan.`;  
+        className = 'bad'; // Si pierdes, podría ser 'bad'  
     } else if (game.in_draw()) {  
         message = "¡Tablas!";  
+        className = 'neutral';  
     } else if (game.in_stalemate()) {  
         message = "¡Ahogado! Tablas.";  
+        className = 'neutral';  
     } else if (game.in_threefold_repetition()) {  
         message = "¡Tablas por triple repetición!";  
+        className = 'neutral';  
     } else if (game.insufficient_material()) {  
         message = "¡Tablas por material insuficiente!";  
+        className = 'neutral';  
     }  
     const coachMsg = document.getElementById('coachMessage');  
     if (coachMsg) {  
         coachMsg.innerHTML = `<strong>Game Over!</strong> ${message}`;  
-        coachMsg.classList.add('good'); // Podría ser una clase 'game-over'  
+        coachMsg.className = `coach-message ${className}`; // Aplicar clase  
     }  
 }  
   
@@ -539,13 +553,13 @@ async function resetGame() {
     const coachMsg = document.getElementById('coachMessage');  
     if (coachMsg) {  
         coachMsg.innerHTML = '<strong>¡Bienvenido!</strong> Realiza tu primer movimiento.';  
-        coachMsg.classList.remove('good', 'bad'); // Limpiar estilos  
+        coachMsg.classList.remove('good', 'bad', 'hint', 'neutral'); // Limpiar todos los estilos  
     }  
     const lastMoveInfoEl = document.getElementById('lastMoveInfo');  
     if (lastMoveInfoEl) lastMoveInfoEl.style.display = 'none';  
   
     // Actualizar la evaluación para la posición inicial (llamada a stockfish-ai.js)  
-    await window.updateEvaluationDisplay();   
+    await window.updateEvaluationDisplay();  
     updateUI(); // Actualizar toda la interfaz  
 }  
   
@@ -561,8 +575,12 @@ async function undoMove() {
     }  
     moveCount = game.history().length; // Sincronizar moveCount con el historial real  
   
+    // Resetear selectedSquare y highlights si es necesario después de undo  
+    selectedSquare = null;  
+    highlights = [];  
+  
     // Re-evaluar la posición después de deshacer (llamada a stockfish-ai.js)  
-    await window.updateEvaluationDisplay();   
+    await window.updateEvaluationDisplay();  
     updateUI(); // Actualizar toda la interfaz  
 }  
   
@@ -606,7 +624,7 @@ async function requestHint() {
         selectedSquare = from; // Seleccionar el cuadrado de origen de la pista  
         highlights = [to]; // Resaltar el cuadrado de destino de la pista  
         renderBoard(); // Redibujar el tablero para mostrar la pista visualmente  
-          
+  
         // Convertir la PV de UCI a SAN para la pista  
         let pvHintSan = '';  
         if (result.pv && result.pv.length > 0) {  
@@ -653,13 +671,13 @@ async function performAnalysis() {
         if (analysisStatus) analysisStatus.textContent = '⚠️ Stockfish no está disponible para análisis detallado.';  
         const analysisLoading = document.getElementById('analysisLoading');  
         if (analysisLoading) analysisLoading.style.display = 'none';  
-          
+  
         // --- Fallback a evaluación local si Stockfish no está disponible ---  
         const localScore = _internalEvaluatePosition();  
         const localProb = calculateWinProbability(localScore);  
   
         // Actualizar elementos del modal con valores locales/predefinidos  
-        document.getElementById('currentScore').innerHTML = localScore.toFixed(2);  
+        document.getElementById('currentScore').innerHTML = (localScore / 100).toFixed(2);  
         document.getElementById('whiteWinProb').innerHTML = localProb.white + '%';  
         document.getElementById('drawProb').innerHTML = localProb.draw + '%';  
         document.getElementById('blackWinProb').innerHTML = localProb.black + '%';  
@@ -670,7 +688,7 @@ async function performAnalysis() {
         document.getElementById('openingEval').innerHTML = '-';  
         document.getElementById('middlegameEval').innerHTML = '-';  
         document.getElementById('endgameEval').innerHTML = '-';  
-        document.getElementById('materialEval').innerHTML = _internalEvaluatePosition().toFixed(2);  
+        document.getElementById('materialEval').innerHTML = (localScore / 100).toFixed(2); // Usar el score local para material  
         return;  
     }  
   
@@ -695,12 +713,17 @@ async function performAnalysis() {
         const from = bestMoveUci.substring(0, 2);  
         const to = bestMoveUci.substring(2, 4);  
         const promotion = bestMoveUci.length > 4 ? bestMoveUci[4].toLowerCase() : undefined;  
-        const tempMove = tempGameForSan.move({ from, to, promotion });  
-        if (tempMove) {  
-            bestMoveSan = tempMove.san;  
-        } else {  
-            console.warn("No se pudo convertir el bestMove UCI a SAN:", bestMoveUci);  
-            bestMoveSan = bestMoveUci; // Si falla la conversión, mostrar el UCI directamente  
+        try {  
+            const tempMove = tempGameForSan.move({ from, to, promotion });  
+            if (tempMove) {  
+                bestMoveSan = tempMove.san;  
+            } else {  
+                console.warn("No se pudo convertir el bestMove UCI a SAN:", bestMoveUci);  
+                bestMoveSan = bestMoveUci; // Si falla la conversión, mostrar el UCI directamente  
+            }  
+        } catch (error) {  
+             console.warn("Error al convertir bestMove UCI a SAN:", error);  
+             bestMoveSan = bestMoveUci;  
         }  
     }  
   
@@ -709,7 +732,7 @@ async function performAnalysis() {
     document.getElementById('drawProb').innerHTML = prob.draw + '%';  
     document.getElementById('blackWinProb').innerHTML = prob.black + '%';  
     document.getElementById('anyWinProb').innerHTML = prob.decisive + '%';  
-    document.getElementById('currentScore').innerHTML = score.toFixed(2);  
+    document.getElementById('currentScore').innerHTML = (score / 100).toFixed(2);  
     document.getElementById('bestMoveAnalysis').innerHTML = bestMoveSan;  
     document.getElementById('analysisDepth').innerHTML = result.depth + ' movimientos';  
   
@@ -731,11 +754,12 @@ async function performAnalysis() {
     // Esto se hace con lógica local ya que Stockfish solo devuelve el score total por defecto  
     const board = game.board();  
     let material = 0;  
-    const pieceValues = { 'p': 1, 'n': 3, 'b': 3.25, 'r': 5, 'q': 9 };  
+    // Valores de piezas en centipeones para material  
+    const pieceValuesMaterial = { 'p': 100, 'n': 300, 'b': 325, 'r': 500, 'q': 900 };  
     for (let row of board) {  
         for (let p of row) {  
             if (!p) continue;  
-            const val = pieceValues[p.type] || 0;  
+            const val = pieceValuesMaterial[p.type] || 0;  
             material += p.color === 'w' ? val : -val;  
         }  
     }  
@@ -743,12 +767,12 @@ async function performAnalysis() {
     // Heurística simple para determinar la fase del juego  
     const phase = history.length < 10 ? 'Apertura' : history.length < 40 ? 'Medio Juego' : 'Final';  
   
-    document.getElementById('materialEval').innerHTML = material.toFixed(2);  
+    document.getElementById('materialEval').innerHTML = (material / 100).toFixed(2);  
     // Para la evaluación por fase, se muestra el score total de Stockfish,  
     // ya que no tenemos scores específicos por fase directamente de Stockfish.  
-    document.getElementById('openingEval').innerHTML = phase === 'Apertura' ? score.toFixed(2) : '-';  
-    document.getElementById('middlegameEval').innerHTML = phase === 'Medio Juego' ? score.toFixed(2) : '-';  
-    document.getElementById('endgameEval').innerHTML = phase === 'Final' ? score.toFixed(2) : '-';  
+    document.getElementById('openingEval').innerHTML = phase === 'Apertura' ? (score / 100).toFixed(2) : '-';  
+    document.getElementById('middlegameEval').innerHTML = phase === 'Medio Juego' ? (score / 100).toFixed(2) : '-';  
+    document.getElementById('endgameEval').innerHTML = phase === 'Final' ? (score / 100).toFixed(2) : '-';  
   
     // Finalizar el estado de carga  
     if (analysisStatus) analysisStatus.textContent = '✅ Análisis completado';  
@@ -790,10 +814,12 @@ function convertPvUciToSan(pvUciArray, initialFen) {
                 // lo añadimos tal cual y emitimos una advertencia. Esto no debería pasar con PVs válidas de Stockfish.  
                 console.warn(`Movimiento UCI inválido en PV: '${uciMove}' en FEN: '${tempGame.fen()}'`);  
                 pvSanArray.push(uciMove); // Fallback a UCI si no se puede convertir a SAN  
+                break; // Detener la conversión si un movimiento es inválido  
             }  
         } catch (error) {  
             console.error(`Error al procesar movimiento UCI '${uciMove}' en FEN '${tempGame.fen()}':`, error);  
             pvSanArray.push(uciMove); // Añadir el UCI si hay un error en el procesamiento  
+            break; // Detener la conversión si hay un error  
         }  
     }  
     return pvSanArray.join(' '); // Unir todos los movimientos SAN con espacios  
