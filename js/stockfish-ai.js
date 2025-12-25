@@ -1,5 +1,10 @@
 let engineReady = false;  
   
+// ===================== VALORES GLOBALES DE PIEZAS =====================  
+// Definir pieceValues globalmente en stockfish-ai.js para que sea accesible  
+// por evaluatePositionLocal, minimax y findBestMoveWithMinimax  
+const pieceValues = { 'p': 100, 'n': 320, 'b': 330, 'r': 500, 'q': 900, 'k': 0 };  
+  
 /**  
  * Inicializa el motor  
  */  
@@ -7,13 +12,8 @@ async function initializeStockfishEngine() {
     try {  
         console.log('Inicializando analizador de ajedrez...');  
   
-        // NOTA: Esta parte se refiere a la inicialización de TU LÓGICA de IA.  
-        // Si quisieras usar el binario real de Stockfish (stockfish.js),  
-        // necesitarías más código aquí para interactuar con él.  
-        // Por ahora, solo indicamos que tu "motor" de IA local está listo.  
-  
         engineReady = true;  
-        window.engineReady = true; // Exportar globalmente para game.js  
+        window.engineReady = true;  
   
         console.log('✅ Analizador listo.');  
   
@@ -33,7 +33,6 @@ async function initializeStockfishEngine() {
   
 /**  
  * Evalúa una posición de ajedrez basándose en heurísticas.  
- * Un evaluador más sofisticado para mejorar la IA sin aumentar demasiado la profundidad.  
  * @param {Object} gameState - La instancia de Chess.js del estado actual del juego.  
  * @returns {number} La puntuación de la posición en centipeones (positivo para blancas, negativo para negras).  
  */  
@@ -41,11 +40,9 @@ function evaluatePositionLocal(gameState) {
     const board = gameState.board();  
     let score = 0;  
   
-    // Valores base de las piezas en centipeones  
-    const pieceValues = { 'p': 100, 'n': 320, 'b': 330, 'r': 500, 'q': 900, 'k': 0 };  
+    // pieceValues ya está definido globalmente arriba  
   
     // Tablas de valores posicionales (ejemplo simplificado)  
-    // Se pueden encontrar tablas más completas en línea (ej. Stockfish, Chess Programming Wiki)  
     const pawnPositional = [  
         [0, 0, 0, 0, 0, 0, 0, 0],  
         [50, 50, 50, 50, 50, 50, 50, 50],  
@@ -118,7 +115,6 @@ function evaluatePositionLocal(gameState) {
     ]; // Para el final de partida  
   
     // Heurística simplificada para determinar la fase del juego  
-    // Contamos el número de piezas mayores (Reina, Torre, Alfil, Caballo)  
     let majorMinorPiecesCount = 0;  
     board.forEach(row => {  
         row.forEach(piece => {  
@@ -127,7 +123,7 @@ function evaluatePositionLocal(gameState) {
             }  
         });  
     });  
-    const isEndgame = majorMinorPiecesCount <= 8; // Arbitrario: si quedan 8 o menos piezas mayores/menores, es final de juego.  
+    const isEndgame = majorMinorPiecesCount <= 8;  
   
     // Iterar sobre cada cuadrado del tablero  
     for (let rowIdx = 0; rowIdx < 8; rowIdx++) {  
@@ -140,7 +136,6 @@ function evaluatePositionLocal(gameState) {
             let pieceScore = pieceValues[piece.type];  
             let positionalScore = 0;  
   
-            // Ajustar la fila para la perspectiva del color (blancas 0-7, negras 7-0)  
             const actualRow = piece.color === 'w' ? rowIdx : 7 - rowIdx;  
             const actualCol = colIdx;  
   
@@ -165,7 +160,6 @@ function evaluatePositionLocal(gameState) {
     }  
   
     // Evaluación de movilidad (número de movimientos legales)  
-    // Dar un pequeño bono por tener más movimientos legales  
     score += (gameState.moves().length * 10) * (gameState.turn() === 'w' ? 1 : -1);  
   
     // Penalización por peones doblados (simplificado)  
@@ -179,7 +173,7 @@ function evaluatePositionLocal(gameState) {
     //             else blackPawnsInCol++;  
     //         }  
     //     }  
-    //     if (whitePawnsInCol > 1) score -= (whitePawnsInCol - 1) * 20; // 20 centipeones por peón doblado extra  
+    //     if (whitePawnsInCol > 1) score -= (whitePawnsInCol - 1) * 20;  
     //     if (blackPawnsInCol > 1) score += (blackPawnsInCol - 1) * 20;  
     // }  
   
@@ -194,14 +188,14 @@ function evaluatePositionLocal(gameState) {
             }  
         });  
     });  
-    if (whiteBishops >= 2) score += 30; // 30 centipeones por alfiles emparejados  
+    if (whiteBishops >= 2) score += 30;  
     if (blackBishops >= 2) score -= 30;  
   
     // Jaque mate es infinito  
     if (gameState.in_checkmate()) {  
-        if (gameState.turn() === 'w') { // Negras acaban de dar jaque mate  
+        if (gameState.turn() === 'w') {  
             score = -Infinity;  
-        } else { // Blancas acaban de dar jaque mate  
+        } else {  
             score = Infinity;  
         }  
     } else if (gameState.in_draw() || gameState.in_stalemate() || gameState.in_threefold_repetition() || gameState.insufficient_material()) {  
@@ -215,13 +209,6 @@ function evaluatePositionLocal(gameState) {
   
 /**  
  * Minimax con poda alfa-beta  
- * @param {Object} gameState - El estado actual del juego (una instancia de Chess.js).  
- * @param {number} depth - La profundidad de búsqueda restante.  
- * @param {number} alpha - El valor alfa para la poda.  
- * @param {number} beta - El valor beta para la poda.  
- * @param {boolean} isMaximizing - True si es el turno del jugador maximizador (IA), false si es el minimizador.  
- * @param {number} difficulty - Nivel de dificultad (1-5) para limitar movimientos.  
- * @returns {number} La evaluación de la posición.  
  */  
 function minimax(gameState, depth, alpha, beta, isMaximizing, difficulty) {  
     if (depth === 0 || gameState.game_over()) {  
@@ -233,19 +220,27 @@ function minimax(gameState, depth, alpha, beta, isMaximizing, difficulty) {
         return evaluatePositionLocal(gameState);  
     }  
   
-    // Limitar movimientos según dificultad para la eficiencia  
-    const moveLimits = { 1: 3, 2: 5, 3: 8, 4: 12, 5: moves.length }; // Limita los N mejores movimientos a considerar  
+    const moveLimits = { 1: 3, 2: 5, 3: 8, 4: 12, 5: moves.length };  
     const maxMovesToConsider = Math.min(moves.length, moveLimits[difficulty] || moves.length);  
   
-    // Ordenar movimientos heurísticamente (crucial para la eficiencia de la poda alfa-beta)  
-    // Aquí puedes implementar una función de ordenamiento más inteligente (ej. movimientos de captura, jaques)  
-    // Para simplificar, una ordenación basada en el "valor" de la pieza involucrada o destino puede ser un inicio.  
-    // Una ordenación alfabética simple no es la más eficiente para alfa-beta.  
     moves.sort((a, b) => {  
-        // Simple ordenamiento: priorizar capturas  
-        const valA = a.captured ? pieceValues[a.captured] : 0;  
-        const valB = b.captured ? pieceValues[b.captured] : 0;  
-        return valB - valA; // Mayor valor de captura primero  
+        // Ordenamiento mejorado: priorizar capturas de alto valor y movimientos de promoción  
+        let scoreA = 0;  
+        let scoreB = 0;  
+  
+        // Valor de la pieza capturada  
+        if (a.captured) scoreA += pieceValues[a.captured];  
+        if (b.captured) scoreB += pieceValues[b.captured];  
+  
+        // Valor de la pieza que se mueve (si captura una de menor valor, es menos buena)  
+        if (a.captured && pieceValues[a.piece] < pieceValues[a.captured]) scoreA += 50; // Heurística simple  
+        if (b.captured && pieceValues[b.piece] < pieceValues[b.captured]) scoreB += 50;  
+  
+        // Bonificación por promoción  
+        if (a.promotion) scoreA += pieceValues[a.promotion];  
+        if (b.promotion) scoreB += pieceValues[b.promotion];  
+  
+        return scoreB - scoreA; // Mayor score primero  
     });  
   
   
@@ -253,28 +248,28 @@ function minimax(gameState, depth, alpha, beta, isMaximizing, difficulty) {
         let maxEval = -Infinity;  
         for (let i = 0; i < maxMovesToConsider; i++) {  
             const move = moves[i];  
-            const tempGame = new Chess(gameState.fen()); // Usar new Chess(fen) para copiar el estado  
+            const tempGame = new Chess(gameState.fen());  
             tempGame.move(move);  
   
             const eval = minimax(tempGame, depth - 1, alpha, beta, false, difficulty);  
   
             maxEval = Math.max(maxEval, eval);  
             alpha = Math.max(alpha, eval);  
-            if (beta <= alpha) break; // Poda Beta  
+            if (beta <= alpha) break;  
         }  
         return maxEval;  
     } else {  
         let minEval = Infinity;  
         for (let i = 0; i < maxMovesToConsider; i++) {  
             const move = moves[i];  
-            const tempGame = new Chess(gameState.fen()); // Usar new Chess(fen) para copiar el estado  
+            const tempGame = new Chess(gameState.fen());  
             tempGame.move(move);  
   
             const eval = minimax(tempGame, depth - 1, alpha, beta, true, difficulty);  
   
             minEval = Math.min(minEval, eval);  
             beta = Math.min(beta, eval);  
-            if (beta <= alpha) break; // Poda Alfa  
+            if (beta <= alpha) break;  
         }  
         return minEval;  
     }  
@@ -282,10 +277,6 @@ function minimax(gameState, depth, alpha, beta, isMaximizing, difficulty) {
   
 /**  
  * Encuentra el mejor movimiento usando minimax  
- * @param {Object} gameState - El estado actual del juego (una instancia de Chess.js).  
- * @param {number} depth - La profundidad máxima de búsqueda.  
- * @param {number} difficulty - Nivel de dificultad (1-5).  
- * @returns {Object|null} El mejor objeto de movimiento (del tipo { from: 'e2', to: 'e4', ... }) o null si no hay movimientos.  
  */  
 function findBestMoveWithMinimax(gameState, depth, difficulty) {  
     const moves = gameState.moves({ verbose: true });  
@@ -294,15 +285,24 @@ function findBestMoveWithMinimax(gameState, depth, difficulty) {
     let bestMove = null;  
     let bestScore = -Infinity;  
   
-    // Ordenar movimientos heurísticamente para ayudar a la poda alfa-beta  
     moves.sort((a, b) => {  
-        const valA = a.captured ? pieceValues[a.captured] : 0;  
-        const valB = b.captured ? pieceValues[b.captured] : 0;  
-        return valB - valA;  
+        let scoreA = 0;  
+        let scoreB = 0;  
+  
+        if (a.captured) scoreA += pieceValues[a.captured];  
+        if (b.captured) scoreB += pieceValues[b.captured];  
+  
+        if (a.captured && pieceValues[a.piece] < pieceValues[a.captured]) scoreA += 50;  
+        if (b.captured && pieceValues[b.piece] < pieceValues[b.captured]) scoreB += 50;  
+  
+        if (a.promotion) scoreA += pieceValues[a.promotion];  
+        if (b.promotion) scoreB += pieceValues[b.promotion];  
+  
+        return scoreB - scoreA;  
     });  
   
     for (const move of moves) {  
-        const tempGame = new Chess(gameState.fen()); // Usar new Chess(fen) para copiar el estado  
+        const tempGame = new Chess(gameState.fen());  
         tempGame.move(move);  
   
         const score = minimax(tempGame, depth - 1, -Infinity, Infinity, false, difficulty);  
@@ -320,9 +320,6 @@ function findBestMoveWithMinimax(gameState, depth, difficulty) {
   
 /**  
  * Evalúa una posición (rápido, no usa minimax directamente para el resultado, sino la evaluación local)  
- * @param {number} depth - Profundidad de evaluación (usada para el display, no para la IA real aquí).  
- * @param {number} customTimeout - Tiempo de espera (no usado para Stockfish real, solo para simular latencia).  
- * @returns {Promise<Object>} Un objeto con la puntuación, el mejor movimiento y la profundidad.  
  */  
 async function evaluateWithStockfish(depth = 2, customTimeout = 300) {  
     return new Promise((resolve) => {  
@@ -332,26 +329,22 @@ async function evaluateWithStockfish(depth = 2, customTimeout = 300) {
                 return;  
             }  
   
-            // Realiza una evaluación local de la posición actual  
             const score = evaluatePositionLocal(window.game);  
             const moves = window.game.moves({ verbose: true });  
             let bestMoveDisplay = null;  
             let pvForDisplay = [];  
   
             if (moves.length > 0) {  
-                // Para el display rápido, podemos hacer una mini-búsqueda de un solo movimiento  
-                // o simplemente mostrar el primer movimiento legal como un placeholder.  
-                // Aquí, para mejorar un poco la sugerencia, podemos usar findBestMoveWithMinimax  
-                // con una profundidad muy superficial (ej. profundidad 1 o 2)  
-                const bestMoveObj = findBestMoveWithMinimax(new Chess(window.game.fen()), 1, 3); // Profundidad 1, dificultad media  
+                // Para el display rápido, usamos findBestMoveWithMinimax con poca profundidad  
+                // para obtener una sugerencia más significativa que solo el primer movimiento legal.  
+                const bestMoveObj = findBestMoveWithMinimax(new Chess(window.game.fen()), 2, 3); // Profundidad 2, dificultad media  
   
                 if (bestMoveObj) {  
                     bestMoveDisplay = bestMoveObj.from + bestMoveObj.to + (bestMoveObj.promotion ? bestMoveObj.promotion : '');  
                     // Para la PV en el display rápido, solo incluimos el mejor movimiento si existe  
                     pvForDisplay.push(bestMoveDisplay);  
                 } else {  
-                     // Si no se encuentra un mejor movimiento (por ejemplo, sin movimientos legales),  
-                    // toma el primer movimiento disponible como fallback para el display.  
+                    // Fallback si no se encuentra un mejor movimiento con la mini-búsqueda  
                     bestMoveDisplay = moves[0].from + moves[0].to + (moves[0].promotion ? moves[0].promotion : '');  
                     pvForDisplay.push(bestMoveDisplay);  
                 }  
@@ -361,7 +354,7 @@ async function evaluateWithStockfish(depth = 2, customTimeout = 300) {
             resolve({  
                 score: score, // evaluatePositionLocal ya devuelve centipeones  
                 bestMove: bestMoveDisplay,  
-                depth: depth, // Esto es más una referencia que una profundidad real de búsqueda aquí  
+                depth: depth,  
                 pv: pvForDisplay  
             });  
         }, customTimeout);  
@@ -375,8 +368,6 @@ async function evaluateWithStockfish(depth = 2, customTimeout = 300) {
  * NOTA: Esta función no usa el algoritmo Minimax implementado.  
  * Es más bien un placeholder si en algún momento se integrara Stockfish real.  
  * Para la IA con Minimax, se debe llamar a makeAIMove.  
- * @param {number} depth - Profundidad de búsqueda.  
- * @returns {Object|null} Objeto de movimiento de Chess.js o null.  
  */  
 async function getBestMoveStockfish(depth = 20) {  
     try {  
@@ -409,8 +400,6 @@ async function getBestMoveStockfish(depth = 20) {
   
 /**  
  * Calcula y devuelve el movimiento de la IA usando el algoritmo Minimax.  
- * Esta es la función principal que debería ser llamada cuando la IA necesita jugar.  
- * @returns {Object|null} El objeto de movimiento de Chess.js o null si el juego ha terminado.  
  */  
 async function makeAIMove() {  
     if (window.game.game_over()) {  
@@ -425,7 +414,6 @@ async function makeAIMove() {
   
     console.log(`IA nivel ${difficulty} (profundidad ${depth})...`);  
   
-    // Pasar una COPIA del estado del juego a findBestMoveWithMinimax  
     const bestMove = findBestMoveWithMinimax(new Chess(window.game.fen()), depth, difficulty);  
   
     if (!bestMove) {  
@@ -447,12 +435,11 @@ async function updateEvaluationDisplay() {
     }  
   
     try {  
-        const result = await evaluateWithStockfish(2, 300); // Llamada rápida para el display  
+        const result = await evaluateWithStockfish(2, 300);  
   
-        // score ya viene en centipeones de evaluatePositionLocal  
         const scoreValue = (result.score / 100).toFixed(2);  
         const depthValue = result.depth;  
-        const bestMoveValue = result.bestMove ? result.bestMove.slice(0, 4) : 'N/A'; // Muestra solo from/to  
+        const bestMoveValue = result.bestMove ? result.bestMove.slice(0, 4) : 'N/A';  
         const pvDisplay = result.pv && result.pv.length > 0 ? result.pv.join(' ') : 'N/A';  
   
         const currentScoreElem = document.getElementById('currentScoreDisplay');  
@@ -464,14 +451,14 @@ async function updateEvaluationDisplay() {
         const bestMoveSuggestionElem = document.getElementById('bestMoveSuggestionDisplay');  
         if (bestMoveSuggestionElem) bestMoveSuggestionElem.textContent = bestMoveValue;  
   
-        const currentPVDisplayElem = document.getElementById('currentPVDisplay'); // Nuevo ID para la PV  
+        const currentPVDisplayElem = document.getElementById('currentPVDisplay');  
         if (currentPVDisplayElem) currentPVDisplayElem.textContent = pvDisplay;  
   
         const evalScoreDiv = document.getElementById('evalScore');  
-        if (evalScoreDiv) evalScoreDiv.textContent = (result.score / 100).toFixed(1); // En peones para la barra  
+        if (evalScoreDiv) evalScoreDiv.textContent = (result.score / 100).toFixed(1);  
   
         if (typeof window.updateEvalBar === 'function') {  
-            window.updateEvalBar(result.score); // Pasar score en centipeones  
+            window.updateEvalBar(result.score);  
         }  
     } catch (e) {  
         console.error("Error al actualizar la evaluación en el display:", e);  
@@ -485,3 +472,5 @@ window.makeAIMove = makeAIMove;
 window.evaluateWithStockfish = evaluateWithStockfish;  
 window.updateEvaluationDisplay = updateEvaluationDisplay;  
 window.engineReady = engineReady;  
+// Exportar evaluatePositionLocal para que game.js pueda usarla como fallback si es necesario  
+window.evaluatePositionLocal = evaluatePositionLocal;  
