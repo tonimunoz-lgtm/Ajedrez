@@ -99,13 +99,10 @@ function minimax(gameState, depth, alpha, beta, isMaximizing, difficulty) {
     }  
   
     // Limitar movimientos según dificultad para la eficiencia  
-    // Esto es una heurística para "simular" menor habilidad en niveles bajos.  
     const moveLimits = { 1: 3, 2: 5, 3: 8, 4: 12, 5: moves.length };  
     const maxMovesToConsider = Math.min(moves.length, moveLimits[difficulty] || moves.length);  
   
     // Ordenar movimientos (muy importante para la poda alfa-beta)  
-    // Aquí se hace un ordenamiento simple, una evaluación más profunda podría predecir qué movimientos son mejores.  
-    // Por ahora, solo los ordenamos alfabéticamente por la notación SAN.  
     moves.sort((a, b) => a.san.localeCompare(b.san));  
   
   
@@ -113,8 +110,8 @@ function minimax(gameState, depth, alpha, beta, isMaximizing, difficulty) {
         let maxEval = -Infinity;  
         for (let i = 0; i < maxMovesToConsider; i++) {  
             const move = moves[i];  
-            // *** CORRECCIÓN CLAVE: Crear una COPIA del estado del juego ***  
-            const tempGame = gameState.copy();  
+            // *** CORRECCIÓN CLAVE: Usar new Chess(gameState.fen()) en lugar de gameState.copy() ***  
+            const tempGame = new Chess(gameState.fen());  
             tempGame.move(move); // Realizar el movimiento en la COPIA  
   
             const eval = minimax(tempGame, depth - 1, alpha, beta, false, difficulty);  
@@ -128,8 +125,8 @@ function minimax(gameState, depth, alpha, beta, isMaximizing, difficulty) {
         let minEval = Infinity;  
         for (let i = 0; i < maxMovesToConsider; i++) {  
             const move = moves[i];  
-            // *** CORRECCIÓN CLAVE: Crear una COPIA del estado del juego ***  
-            const tempGame = gameState.copy();  
+            // *** CORRECCIÓN CLAVE: Usar new Chess(gameState.fen()) en lugar de gameState.copy() ***  
+            const tempGame = new Chess(gameState.fen());  
             tempGame.move(move); // Realizar el movimiento en la COPIA  
   
             const eval = minimax(tempGame, depth - 1, alpha, beta, true, difficulty);  
@@ -153,18 +150,15 @@ function findBestMoveWithMinimax(gameState, depth, difficulty) {
     const moves = gameState.moves({ verbose: true });  
     if (moves.length === 0) return null;  
   
-    let bestMove = null; // Inicializar con null para manejar el caso de no encontrar un score mejor  
+    let bestMove = null;  
     let bestScore = -Infinity;  
   
-    // Ordenar movimientos (opcional, pero mejora la poda alfa-beta)  
-    // Aquí podrías usar una heurística más avanzada para ordenar los "movimientos iniciales".  
-    // Por ahora, un ordenamiento simple puede ayudar.  
     moves.sort((a, b) => a.san.localeCompare(b.san));  
   
   
     for (const move of moves) {  
-        // *** CORRECCIÓN CLAVE: Crear una COPIA del estado del juego ***  
-        const tempGame = gameState.copy();  
+        // *** CORRECCIÓN CLAVE: Usar new Chess(gameState.fen()) en lugar de gameState.copy() ***  
+        const tempGame = new Chess(gameState.fen());  
         tempGame.move(move); // Realizar el movimiento en la COPIA  
   
         // El turno cambia después de move(), así que el siguiente jugador es el minimizador (false)  
@@ -195,29 +189,21 @@ async function evaluateWithStockfish(depth = 2, customTimeout = 300) {
                 return;  
             }  
   
-            // Aquí se usa evaluatePositionLocal para una evaluación rápida para el display  
             const score = evaluatePositionLocal(window.game);  
             const moves = window.game.moves({ verbose: true });  
             let bestMoveDisplay = null;  
             if (moves.length > 0) {  
-                // Para el display, podríamos tomar el primer movimiento legal o intentar una mini-búsqueda  
-                // Por simplicidad, tomamos el primero o el resultado de una búsqueda superficial  
-                if (moves.length > 0) {  
-                    // Podrías hacer una mini-búsqueda aquí para una mejor sugerencia  
-                    // Por ahora, solo para el display, tomamos el primer movimiento  
-                    // o una evaluación superficial del primer movimiento.  
-                    bestMoveDisplay = moves[0].from + moves[0].to + (moves[0].promotion ? moves[0].promotion : '');  
-                }  
+                bestMoveDisplay = moves[0].from + moves[0].to + (moves[0].promotion ? moves[0].promotion : '');  
             }  
   
   
             resolve({  
-                score: score * 100, // Multiplicar por 100 para un formato de centipeones  
+                score: score * 100,  
                 bestMove: bestMoveDisplay,  
-                depth: depth, // Esto es más una referencia que una profundidad real de búsqueda aquí  
-                pv: bestMoveDisplay ? [bestMoveDisplay] : [] // Variación principal  
+                depth: depth,  
+                pv: bestMoveDisplay ? [bestMoveDisplay] : []  
             });  
-        }, customTimeout); // Pequeño retraso para simular un cálculo  
+        }, customTimeout);  
     });  
 }  
   
@@ -233,13 +219,10 @@ async function evaluateWithStockfish(depth = 2, customTimeout = 300) {
  */  
 async function getBestMoveStockfish(depth = 20) {  
     try {  
-        // Esto NO utiliza el minimax que hemos implementado.  
-        // Es para una evaluación rápida o si se conectara a un Stockfish real.  
-        const result = await evaluateWithStockfish(depth, 500); // Reduce el timeout para que sea "rápido"  
+        const result = await evaluateWithStockfish(depth, 500);  
   
         if (!result.bestMove) {  
             const moves = window.game.moves({ verbose: true });  
-            // Si no hay mejor movimiento por la evaluación rápida, toma uno aleatorio  
             return moves.length > 0 ? moves[Math.floor(Math.random() * moves.length)] : null;  
         }  
   
@@ -247,14 +230,8 @@ async function getBestMoveStockfish(depth = 20) {
         const to = result.bestMove.substring(2, 4);  
         const promotion = result.bestMove.length > 4 ? result.bestMove[4].toLowerCase() : undefined;  
   
-        // Crear un objeto de movimiento para la biblioteca Chess.js  
-        // No es necesario usar un tempGame si solo estamos formando el objeto.  
-        // Pero se podría validar el movimiento con Chess.js si fuera necesario.  
         const moveObj = { from, to, promotion };  
   
-        // Una verificación simple para asegurarse de que el movimiento es legal.  
-        // Si el result.bestMove viene de una fuente externa como Stockfish real, ya sería legal.  
-        // Como aquí viene de evaluatePositionLocal, es mejor verificarlo.  
         const legalMoves = window.game.moves({ verbose: true });  
         const isMoveLegal = legalMoves.some(m => m.from === from && m.to === to && (!promotion || m.promotion === promotion));  
   
@@ -262,7 +239,6 @@ async function getBestMoveStockfish(depth = 20) {
   
     } catch (e) {  
         console.error('Error en getBestMoveStockfish:', e);  
-        // En caso de error, retorna un movimiento aleatorio para no bloquear el juego  
         const moves = window.game.moves({ verbose: true });  
         return moves.length > 0 ? moves[Math.floor(Math.random() * moves.length)] : null;  
     }  
@@ -283,17 +259,14 @@ async function makeAIMove() {
     const difficultyElem = document.getElementById('difficulty');  
     const difficulty = difficultyElem ? parseInt(difficultyElem.value) : 3;  
   
-    // Mapeo de dificultad a profundidad de búsqueda de Minimax  
     const depthMap = { 1: 2, 2: 3, 3: 4, 4: 5, 5: 6 };  
-    const depth = depthMap[difficulty] || 4; // Profundidad predeterminada si la dificultad no está mapeada  
+    const depth = depthMap[difficulty] || 4;  
   
     console.log(`IA nivel ${difficulty} (profundidad ${depth})...`);  
   
-    // *** CORRECCIÓN CLAVE: Pasar una COPIA del estado del juego a findBestMoveWithMinimax ***  
-    const bestMove = findBestMoveWithMinimax(window.game.copy(), depth, difficulty);  
+    // *** CORRECCIÓN CLAVE: Usar new Chess(window.game.fen()) en lugar de window.game.copy() ***  
+    const bestMove = findBestMoveWithMinimax(new Chess(window.game.fen()), depth, difficulty);  
   
-    // Si por alguna razón no se encontró un bestMove (ej. sin movimientos legales),  
-    // se podría retornar un movimiento aleatorio como fallback.  
     if (!bestMove) {  
         const moves = window.game.moves({ verbose: true });  
         return moves.length > 0 ? moves[Math.floor(Math.random() * moves.length)] : null;  
@@ -313,10 +286,9 @@ async function updateEvaluationDisplay() {
     }  
   
     try {  
-        // Usamos evaluateWithStockfish que es una evaluación local rápida, no Minimax completo  
-        const result = await evaluateWithStockfish(2, 300); // Poca profundidad y timeout para rapidez  
+        const result = await evaluateWithStockfish(2, 300);  
   
-        const scoreValue = (result.score / 100).toFixed(2); // Convertir a formato de peones  
+        const scoreValue = (result.score / 100).toFixed(2);  
         const depthValue = result.depth;  
         const bestMoveValue = result.bestMove || 'N/A';  
   
@@ -333,18 +305,17 @@ async function updateEvaluationDisplay() {
         if (evalScoreDiv) evalScoreDiv.textContent = (result.score / 100).toFixed(1);  
   
         if (typeof window.updateEvalBar === 'function') {  
-            window.updateEvalBar(result.score); // Pasa el score en centipeones a la barra de evaluación  
+            window.updateEvalBar(result.score);  
         }  
     } catch (e) {  
-        // Silenciar errores en la actualización del display para no interrumpir el juego  
-        // console.error("Error al actualizar la evaluación:", e);  
+        // Silenciar  
     }  
 }  
   
 // ===================== EXPORTAR FUNCIONES GLOBALES =====================  
 window.initializeStockfishEngine = initializeStockfishEngine;  
-window.getBestMoveStockfish = getBestMoveStockfish; // Para compatibilidad o uso futuro de "hint"  
-window.makeAIMove = makeAIMove; // La función clave para la IA con Minimax  
-window.evaluateWithStockfish = evaluateWithStockfish; // Para la evaluación rápida del display  
+window.getBestMoveStockfish = getBestMoveStockfish;  
+window.makeAIMove = makeAIMove;  
+window.evaluateWithStockfish = evaluateWithStockfish;  
 window.updateEvaluationDisplay = updateEvaluationDisplay;  
-window.engineReady = engineReady; // Puede ser usado para verificar si el motor está listo.  
+window.engineReady = engineReady;  
