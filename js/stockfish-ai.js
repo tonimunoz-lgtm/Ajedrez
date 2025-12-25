@@ -246,7 +246,7 @@ async function makeAIMove() {
 // ===================== ACTUALIZAR INTERFAZ =====================  
 
 /**  
- * Actualiza la evaluación
+ * Actualiza la evaluación (OPTIMIZADO - menos análisis)
  */  
 async function updateEvaluationDisplay() {  
     if (!window.game || typeof window.game.fen !== 'function') {
@@ -254,7 +254,8 @@ async function updateEvaluationDisplay() {
     }
 
     try {
-        const result = await evaluateWithStockfish(3, 1000);
+        // Solo hacer análisis rápido (profundidad 2, no 3)
+        const result = await evaluateWithStockfish(2, 300);
 
         const scoreValue = (result.score / 100).toFixed(2);
         const depthValue = result.depth;
@@ -276,7 +277,7 @@ async function updateEvaluationDisplay() {
             window.updateEvalBar(result.score);
         }
     } catch (e) {
-        console.warn('Error:', e);
+        // Silenciar errores para que no bloquee la interfaz
     }
 }
 
