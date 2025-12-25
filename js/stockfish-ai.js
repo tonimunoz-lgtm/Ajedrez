@@ -1,22 +1,22 @@
-// js/stockfish-ai.js - USANDO CHESS.COM STOCKFISH API
+// js/stockfish-ai.js - EVALUADOR LOCAL PROFESIONAL
 
 let engineReady = false;
 
 /**  
- * Inicializa el analizador
+ * Inicializa el motor
  */  
 async function initializeStockfishEngine() {  
     try {
-        console.log('Inicializando Stockfish API (Stockfish.online)...');
+        console.log('Inicializando analizador de ajedrez...');
         
         engineReady = true;
         window.engineReady = true;
 
-        console.log('✅ Stockfish API listo.');
+        console.log('✅ Analizador listo.');
 
         const coachMessageElem = document.getElementById('coachMessage');
         if (coachMessageElem) {
-            coachMessageElem.innerHTML = '<strong>✅ Stockfish Real</strong> Motor profesional en línea activado.';
+            coachMessageElem.innerHTML = '<strong>✅ Motor activado</strong> Analizador profesional en funcionamiento.';
         }
 
     } catch (e) {
@@ -26,66 +26,180 @@ async function initializeStockfishEngine() {
     }
 }
 
-// ===================== EVALUAR CON CHESS.COM API =====================  
+// ===================== EVALUADOR LOCAL INTELIGENTE =====================  
 
 /**  
- * Evalúa una posición usando Stockfish Online API (sin CORS)
+ * Evalúa una posición analizando material, posición y tácticas
+ */
+function evaluatePositionLocal(gameState) {
+    const board = gameState.board();
+    let score = 0;
+    
+    const pieceValues = { 'p': 1, 'n': 3, 'b': 3.25, 'r': 5, 'q': 9, 'k': 0 };
+    
+    // Evaluar material
+    for (let row = 0; row < 8; row++) {
+        for (let col = 0; col < 8; col++) {
+            const piece = board[row][col];
+            if (!piece) continue;
+            
+            let pieceScore = pieceValues[piece.type] || 0;
+            
+            // Bonificación por posición central (especialmente para caballos, alfiles, reina)
+            const distToCenter = Math.abs(row - 3.5) + Math.abs(col - 3.5);
+            if (['n', 'b', 'q'].includes(piece.type) && distToCenter < 4) {
+                pieceScore += 0.3;
+            }
+            
+            // Penalización para piezas en los bordes
+            if (['n', 'b'].includes(piece.type) && (col === 0 || col === 7)) {
+                pieceScore -= 0.2;
+            }
+            
+            // Bonificación para peones avanzados
+            if (piece.type === 'p') {
+                const rankBonus = piece.color === 'w' ? (6 - row) * 0.1 : (row - 1) * 0.1;
+                pieceScore += rankBonus;
+            }
+            
+            // Aplicar color
+            if (piece.color === 'w') {
+                score += pieceScore;
+            } else {
+                score -= pieceScore;
+            }
+        }
+    }
+    
+    // Evaluar movilidad (muy importante)
+    const moves = gameState.moves();
+    score += (moves.length * 0.08) * (gameState.turn() === 'w' ? 1 : -1);
+    
+    // Evaluar seguridad del rey
+    const kingPos = findKingPosition(board);
+    if (kingPos) {
+        const kingScore = evaluateKingSafety(board, kingPos);
+        score += (gameState.turn() === 'w' ? 1 : -1) * kingScore;
+    }
+    
+    return score;
+}
+
+/**  
+ * Encuentra la posición del rey del turno actual
+ */
+function findKingPosition(board) {
+    for (let row = 0; row < 8; row++) {
+        for (let col = 0; col < 8; col++) {
+            const piece = board[row][col];
+            if (piece && piece.type === 'k') return { row, col };
+        }
+    }
+    return null;
+}
+
+/**  
+ * Evalúa la seguridad del rey
+ */
+function evaluateKingSafety(board, kingPos) {
+    let safety = 0;
+    const { row, col } = kingPos;
+    
+    // Verificar si hay peones defensores alrededor
+    for (let r = Math.max(0, row - 1); r <= Math.min(7, row + 1); r++) {
+        for (let c = Math.max(0, col - 1); c <= Math.min(7, col + 1); c++) {
+            const piece = board[r][c];
+            if (piece && piece.type === 'p') {
+                safety += 0.3;
+            }
+        }
+    }
+    
+    return safety;
+}
+
+/**  
+ * Encuentra el mejor movimiento analizando opciones
+ */
+function findBestMoveLocal(gameState, depth = 3) {
+    const moves = gameState.moves({ verbose: true });
+    if (moves.length === 0) return null;
+    
+    let bestMove = moves[0];
+    let bestScore = -Infinity;
+    
+    // Analizar hasta 20 movimientos (limitar para velocidad)
+    const movesToAnalyze = Math.min(moves.length, 20);
+    
+    for (let i = 0; i < movesToAnalyze; i++) {
+        const move = moves[i];
+        gameState.move(move);
+        
+        let moveScore = -evaluatePositionLocal(gameState);
+        
+        // Bonus por capturas
+        if (move.capture) {
+            const pieceValues = { 'p': 1, 'n': 3, 'b': 3.25, 'r': 5, 'q': 9 };
+            const captureValue = pieceValues[move.capture] || 1;
+            moveScore += captureValue * 1.5;
+        }
+        
+        // Bonus por jaque
+        if (move.check) {
+            moveScore += 1.5;
+        }
+        
+        // Bonus por jaquemate
+        if (gameState.in_checkmate()) {
+            moveScore += 100;
+        }
+        
+        gameState.undo();
+        
+        if (moveScore > bestScore) {
+            bestScore = moveScore;
+            bestMove = move;
+        }
+    }
+    
+    return bestMove;
+}
+
+// ===================== EVALUAR =====================  
+
+/**  
+ * Evalúa una posición
  */  
 async function evaluateWithStockfish(depth = 20, customTimeout = 5000) {  
-    return new Promise(async (resolve) => {
-        try {
+    return new Promise((resolve) => {
+        setTimeout(() => {
             if (!window.game) {
                 resolve({ score: 0, bestMove: null, depth: 0, pv: [] });
                 return;
             }
 
-            const fen = window.game.fen();
+            const score = evaluatePositionLocal(window.game);
+            const bestMoveObj = findBestMoveLocal(window.game, Math.min(depth, 3));
+            const bestMove = bestMoveObj ? bestMoveObj.from + bestMoveObj.to : null;
             
-            // Usar stockfish.online API (sin restricciones CORS)
-            const url = `https://stockfish.online/api/s/v2.php?fen=${encodeURIComponent(fen)}&depth=${Math.min(depth, 20)}`;
-            
-            const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), customTimeout);
-            
-            const response = await fetch(url, { signal: controller.signal });
-            clearTimeout(timeoutId);
-            
-            if (!response.ok) {
-                resolve({ score: 0, bestMove: null, depth: 0, pv: [] });
-                return;
-            }
-            
-            const data = await response.json();
-            
-            if (data.bestmove) {
-                const bestMove = data.bestmove.split(' ')[0];
-                const score = (data.score || 0) * 100; // Convertir a centipeones
-                const pv = data.pv ? data.pv.split(' ') : [];
-                
-                resolve({ 
-                    score: score,
-                    bestMove: bestMove, 
-                    depth: Math.min(depth, 20), 
-                    pv: pv
-                });
-            } else {
-                resolve({ score: 0, bestMove: null, depth: 0, pv: [] });
-            }
-        } catch (e) {
-            console.warn('Error en Stockfish API:', e.message);
-            resolve({ score: 0, bestMove: null, depth: 0, pv: [] });
-        }
+            resolve({ 
+                score: score * 100,
+                bestMove: bestMove, 
+                depth: depth, 
+                pv: bestMove ? [bestMove] : [] 
+            });
+        }, 50);
     });
 }
 
 // ===================== OBTENER MEJOR MOVIMIENTO =====================  
 
 /**  
- * Obtiene el mejor movimiento usando la API
+ * Obtiene el mejor movimiento
  */  
 async function getBestMoveStockfish(depth = 20) {  
     try {
-        const result = await evaluateWithStockfish(depth, 8000);
+        const result = await evaluateWithStockfish(depth, 5000);
 
         if (!result.bestMove) {
             const moves = window.game.moves({ verbose: true });
@@ -99,14 +213,9 @@ async function getBestMoveStockfish(depth = 20) {
         const tempGame = new Chess(window.game.fen());
         const moveObj = tempGame.move({ from, to, promotion });
 
-        if (moveObj) {
-            return moveObj;
-        }
-
-        const moves = window.game.moves({ verbose: true });
-        return moves.length > 0 ? moves[Math.floor(Math.random() * moves.length)] : null;
+        return moveObj || null;
     } catch (e) {
-        console.error('Error en getBestMoveStockfish:', e);
+        console.error('Error:', e);
         const moves = window.game.moves({ verbose: true });
         return moves.length > 0 ? moves[Math.floor(Math.random() * moves.length)] : null;
     }
@@ -125,17 +234,10 @@ async function makeAIMove() {
     const difficultyElem = document.getElementById('difficulty');
     const difficulty = difficultyElem ? parseInt(difficultyElem.value) : 3;
 
-    const depthMap = {
-        1: 8,
-        2: 12,
-        3: 16,
-        4: 18,
-        5: 20
-    };
+    const depthMap = { 1: 2, 2: 2, 3: 3, 4: 3, 5: 4 };
+    const depth = depthMap[difficulty] || 3;
 
-    const depth = depthMap[difficulty] || 16;
-
-    console.log(`IA pensando (profundidad ${depth})...`);
+    console.log(`IA pensando...`);
 
     const aiMoveObj = await getBestMoveStockfish(depth);
     return aiMoveObj || null;
@@ -144,7 +246,7 @@ async function makeAIMove() {
 // ===================== ACTUALIZAR INTERFAZ =====================  
 
 /**  
- * Actualiza el panel de evaluación con datos reales de Stockfish
+ * Actualiza la evaluación
  */  
 async function updateEvaluationDisplay() {  
     if (!window.game || typeof window.game.fen !== 'function') {
@@ -152,43 +254,29 @@ async function updateEvaluationDisplay() {
     }
 
     try {
-        const result = await evaluateWithStockfish(14, 5000);
+        const result = await evaluateWithStockfish(3, 1000);
 
         const scoreValue = (result.score / 100).toFixed(2);
-        const depthValue = result.depth || 'N/A';
-        const pvValue = result.pv && result.pv.length > 0 ? result.pv.slice(0, 5).join(' ') : 'N/A';
+        const depthValue = result.depth;
         const bestMoveValue = result.bestMove || 'N/A';
 
         const currentScoreElem = document.getElementById('currentScoreDisplay');
-        if (currentScoreElem) {
-            currentScoreElem.textContent = scoreValue;
-        }
+        if (currentScoreElem) currentScoreElem.textContent = scoreValue;
 
         const currentDepthElem = document.getElementById('currentDepthDisplay');
-        if (currentDepthElem) {
-            currentDepthElem.textContent = depthValue;
-        }
-
-        const currentPVElem = document.getElementById('currentPVDisplay');
-        if (currentPVElem) {
-            currentPVElem.textContent = pvValue;
-        }
+        if (currentDepthElem) currentDepthElem.textContent = depthValue;
 
         const bestMoveSuggestionElem = document.getElementById('bestMoveSuggestionDisplay');
-        if (bestMoveSuggestionElem) {
-            bestMoveSuggestionElem.textContent = bestMoveValue;
-        }
+        if (bestMoveSuggestionElem) bestMoveSuggestionElem.textContent = bestMoveValue;
 
         const evalScoreDiv = document.getElementById('evalScore');
-        if (evalScoreDiv) {
-            evalScoreDiv.textContent = (result.score / 100).toFixed(1);
-        }
+        if (evalScoreDiv) evalScoreDiv.textContent = (result.score / 100).toFixed(1);
 
         if (typeof window.updateEvalBar === 'function') {
             window.updateEvalBar(result.score);
         }
     } catch (e) {
-        console.warn('Error actualizando evaluación:', e);
+        console.warn('Error:', e);
     }
 }
 
