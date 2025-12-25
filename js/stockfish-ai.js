@@ -7,8 +7,13 @@ async function initializeStockfishEngine() {
     try {  
         console.log('Inicializando analizador de ajedrez...');  
   
+        // NOTA: Esta parte se refiere a la inicialización de TU LÓGICA de IA.  
+        // Si quisieras usar el binario real de Stockfish (stockfish.js),  
+        // necesitarías más código aquí para interactuar con él.  
+        // Por ahora, solo indicamos que tu "motor" de IA local está listo.  
+  
         engineReady = true;  
-        window.engineReady = true;  
+        window.engineReady = true; // Exportar globalmente para game.js  
   
         console.log('✅ Analizador listo.');  
   
@@ -18,7 +23,7 @@ async function initializeStockfishEngine() {
         }  
   
     } catch (e) {  
-        console.error('❌ Error:', e);  
+        console.error('❌ Error al inicializar el analizador:', e);  
         engineReady = false;  
         window.engineReady = false;  
     }  
@@ -27,38 +32,129 @@ async function initializeStockfishEngine() {
 // ===================== EVALUADOR LOCAL INTELIGENTE =====================  
   
 /**  
- * Evalúa una posición  
+ * Evalúa una posición de ajedrez basándose en heurísticas.  
+ * Un evaluador más sofisticado para mejorar la IA sin aumentar demasiado la profundidad.  
+ * @param {Object} gameState - La instancia de Chess.js del estado actual del juego.  
+ * @returns {number} La puntuación de la posición en centipeones (positivo para blancas, negativo para negras).  
  */  
 function evaluatePositionLocal(gameState) {  
     const board = gameState.board();  
     let score = 0;  
   
-    // Valores de las piezas  
-    const pieceValues = { 'p': 1, 'n': 3, 'b': 3.25, 'r': 5, 'q': 9, 'k': 0 };  
+    // Valores base de las piezas en centipeones  
+    const pieceValues = { 'p': 100, 'n': 320, 'b': 330, 'r': 500, 'q': 900, 'k': 0 };  
   
-    // Evaluación de Material y Posición  
-    for (let row = 0; row < 8; row++) {  
-        for (let col = 0; col < 8; col++) {  
-            const piece = board[row][col];  
+    // Tablas de valores posicionales (ejemplo simplificado)  
+    // Se pueden encontrar tablas más completas en línea (ej. Stockfish, Chess Programming Wiki)  
+    const pawnPositional = [  
+        [0, 0, 0, 0, 0, 0, 0, 0],  
+        [50, 50, 50, 50, 50, 50, 50, 50],  
+        [10, 10, 20, 30, 30, 20, 10, 10],  
+        [5, 5, 10, 25, 25, 10, 5, 5],  
+        [0, 0, 0, 20, 20, 0, 0, 0],  
+        [5, -5, -10, 0, 0, -10, -5, 5],  
+        [5, 10, 10, -20, -20, 10, 10, 5],  
+        [0, 0, 0, 0, 0, 0, 0, 0]  
+    ];  
+    const knightPositional = [  
+        [-50, -40, -30, -30, -30, -30, -40, -50],  
+        [-40, -20, 0, 0, 0, 0, -20, -40],  
+        [-30, 0, 10, 15, 15, 10, 0, -30],  
+        [-30, 5, 15, 20, 20, 15, 5, -30],  
+        [-30, 0, 15, 20, 20, 15, 0, -30],  
+        [-30, 5, 10, 15, 15, 10, 5, -30],  
+        [-40, -20, 0, 5, 5, 0, -20, -40],  
+        [-50, -40, -30, -30, -30, -30, -40, -50]  
+    ];  
+    const bishopPositional = [  
+        [-20, -10, -10, -10, -10, -10, -10, -20],  
+        [-10, 0, 0, 0, 0, 0, 0, -10],  
+        [-10, 0, 5, 10, 10, 5, 0, -10],  
+        [-10, 5, 5, 10, 10, 5, 5, -10],  
+        [-10, 0, 10, 10, 10, 10, 0, -10],  
+        [-10, 10, 10, 10, 10, 10, 10, -10],  
+        [-10, 5, 0, 0, 0, 0, 5, -10],  
+        [-20, -10, -10, -10, -10, -10, -10, -20]  
+    ];  
+    const rookPositional = [  
+        [0, 0, 0, 0, 0, 0, 0, 0],  
+        [5, 10, 10, 10, 10, 10, 10, 5],  
+        [-5, 0, 0, 0, 0, 0, 0, -5],  
+        [-5, 0, 0, 0, 0, 0, 0, -5],  
+        [-5, 0, 0, 0, 0, 0, 0, -5],  
+        [-5, 0, 0, 0, 0, 0, 0, -5],  
+        [-5, 0, 0, 0, 0, 0, 0, -5],  
+        [0, 0, 0, 5, 5, 0, 0, 0]  
+    ];  
+    const queenPositional = [  
+        [-20, -10, -10, -5, -5, -10, -10, -20],  
+        [-10, 0, 0, 0, 0, 0, 0, -10],  
+        [-10, 0, 5, 5, 5, 5, 0, -10],  
+        [-5, 0, 5, 5, 5, 5, 0, -5],  
+        [0, 0, 5, 5, 5, 5, 0, -5],  
+        [-10, 5, 5, 5, 5, 5, 0, -10],  
+        [-10, 0, 0, 0, 0, 0, 0, -10],  
+        [-20, -10, -10, -5, -5, -10, -10, -20]  
+    ];  
+    const kingPositional = [  
+        [-30, -40, -40, -50, -50, -40, -40, -30],  
+        [-30, -40, -40, -50, -50, -40, -40, -30],  
+        [-30, -40, -40, -50, -50, -40, -40, -30],  
+        [-30, -40, -40, -50, -50, -40, -40, -30],  
+        [-20, -30, -30, -40, -40, -30, -30, -20],  
+        [-10, -20, -20, -20, -20, -20, -20, -10],  
+        [20, 20, 0, 0, 0, 0, 20, 20],  
+        [20, 30, 10, 0, 0, 10, 30, 20]  
+    ]; // Para el medio juego  
+    const kingEndgamePositional = [  
+        [-50, -40, -30, -20, -20, -30, -40, -50],  
+        [-30, -20, -10, 0, 0, -10, -20, -30],  
+        [-30, -10, 20, 30, 30, 20, -10, -30],  
+        [-30, -10, 30, 40, 40, 30, -10, -30],  
+        [-30, -10, 30, 40, 40, 30, -10, -30],  
+        [-30, -10, 20, 30, 30, 20, -10, -30],  
+        [-30, -30, 0, 0, 0, 0, -30, -30],  
+        [-50, -30, -30, -30, -30, -30, -30, -50]  
+    ]; // Para el final de partida  
+  
+    // Heurística simplificada para determinar la fase del juego  
+    // Contamos el número de piezas mayores (Reina, Torre, Alfil, Caballo)  
+    let majorMinorPiecesCount = 0;  
+    board.forEach(row => {  
+        row.forEach(piece => {  
+            if (piece && ['q', 'r', 'b', 'n'].includes(piece.type)) {  
+                majorMinorPiecesCount++;  
+            }  
+        });  
+    });  
+    const isEndgame = majorMinorPiecesCount <= 8; // Arbitrario: si quedan 8 o menos piezas mayores/menores, es final de juego.  
+  
+    // Iterar sobre cada cuadrado del tablero  
+    for (let rowIdx = 0; rowIdx < 8; rowIdx++) {  
+        for (let colIdx = 0; colIdx < 8; colIdx++) {  
+            const square = String.fromCharCode(97 + colIdx) + (8 - rowIdx);  
+            const piece = gameState.get(square);  
+  
             if (!piece) continue;  
   
-            let pieceScore = pieceValues[piece.type] || 0;  
+            let pieceScore = pieceValues[piece.type];  
+            let positionalScore = 0;  
   
-            // Bonificaciones y penalizaciones posicionales  
-            const distToCenter = Math.abs(row - 3.5) + Math.abs(col - 3.5);  
-            if (['n', 'b', 'q'].includes(piece.type) && distToCenter < 4) {  
-                pieceScore += 0.3; // Bonificación por centralización  
+            // Ajustar la fila para la perspectiva del color (blancas 0-7, negras 7-0)  
+            const actualRow = piece.color === 'w' ? rowIdx : 7 - rowIdx;  
+            const actualCol = colIdx;  
+  
+            // Añadir puntuaciones posicionales  
+            switch (piece.type) {  
+                case 'p': positionalScore = pawnPositional[actualRow][actualCol]; break;  
+                case 'n': positionalScore = knightPositional[actualRow][actualCol]; break;  
+                case 'b': positionalScore = bishopPositional[actualRow][actualCol]; break;  
+                case 'r': positionalScore = rookPositional[actualRow][actualCol]; break;  
+                case 'q': positionalScore = queenPositional[actualRow][actualCol]; break;  
+                case 'k': positionalScore = isEndgame ? kingEndgamePositional[actualRow][actualCol] : kingPositional[actualRow][actualCol]; break;  
             }  
   
-            if (['n', 'b'].includes(piece.type) && (col === 0 || col === 7)) {  
-                pieceScore -= 0.2; // Penalización por piezas en las esquinas  
-            }  
-  
-            if (piece.type === 'p') {  
-                // Bonificación por avance de peones  
-                const rankBonus = piece.color === 'w' ? (6 - row) * 0.1 : (row - 1) * 0.1;  
-                pieceScore += rankBonus;  
-            }  
+            pieceScore += positionalScore;  
   
             if (piece.color === 'w') {  
                 score += pieceScore;  
@@ -68,10 +164,49 @@ function evaluatePositionLocal(gameState) {
         }  
     }  
   
-    // Movilidad (considera el número de movimientos legales)  
-    // Se multiplica por un factor pequeño para que tenga peso pero no domine sobre el material  
-    const moves = gameState.moves();  
-    score += (moves.length * 0.08) * (gameState.turn() === 'w' ? 1 : -1);  
+    // Evaluación de movilidad (número de movimientos legales)  
+    // Dar un pequeño bono por tener más movimientos legales  
+    score += (gameState.moves().length * 10) * (gameState.turn() === 'w' ? 1 : -1);  
+  
+    // Penalización por peones doblados (simplificado)  
+    // For (let col = 0; col < 8; col++) {  
+    //     let whitePawnsInCol = 0;  
+    //     let blackPawnsInCol = 0;  
+    //     for (let row = 0; row < 8; row++) {  
+    //         const piece = board[row][col];  
+    //         if (piece && piece.type === 'p') {  
+    //             if (piece.color === 'w') whitePawnsInCol++;  
+    //             else blackPawnsInCol++;  
+    //         }  
+    //     }  
+    //     if (whitePawnsInCol > 1) score -= (whitePawnsInCol - 1) * 20; // 20 centipeones por peón doblado extra  
+    //     if (blackPawnsInCol > 1) score += (blackPawnsInCol - 1) * 20;  
+    // }  
+  
+    // Bono por tener alfiles emparejados  
+    let whiteBishops = 0;  
+    let blackBishops = 0;  
+    board.forEach(row => {  
+        row.forEach(piece => {  
+            if (piece && piece.type === 'b') {  
+                if (piece.color === 'w') whiteBishops++;  
+                else blackBishops++;  
+            }  
+        });  
+    });  
+    if (whiteBishops >= 2) score += 30; // 30 centipeones por alfiles emparejados  
+    if (blackBishops >= 2) score -= 30;  
+  
+    // Jaque mate es infinito  
+    if (gameState.in_checkmate()) {  
+        if (gameState.turn() === 'w') { // Negras acaban de dar jaque mate  
+            score = -Infinity;  
+        } else { // Blancas acaban de dar jaque mate  
+            score = Infinity;  
+        }  
+    } else if (gameState.in_draw() || gameState.in_stalemate() || gameState.in_threefold_repetition() || gameState.insufficient_material()) {  
+        score = 0; // Tablas  
+    }  
   
     return score;  
 }  
@@ -99,20 +234,27 @@ function minimax(gameState, depth, alpha, beta, isMaximizing, difficulty) {
     }  
   
     // Limitar movimientos según dificultad para la eficiencia  
-    const moveLimits = { 1: 3, 2: 5, 3: 8, 4: 12, 5: moves.length };  
+    const moveLimits = { 1: 3, 2: 5, 3: 8, 4: 12, 5: moves.length }; // Limita los N mejores movimientos a considerar  
     const maxMovesToConsider = Math.min(moves.length, moveLimits[difficulty] || moves.length);  
   
-    // Ordenar movimientos (muy importante para la poda alfa-beta)  
-    moves.sort((a, b) => a.san.localeCompare(b.san));  
+    // Ordenar movimientos heurísticamente (crucial para la eficiencia de la poda alfa-beta)  
+    // Aquí puedes implementar una función de ordenamiento más inteligente (ej. movimientos de captura, jaques)  
+    // Para simplificar, una ordenación basada en el "valor" de la pieza involucrada o destino puede ser un inicio.  
+    // Una ordenación alfabética simple no es la más eficiente para alfa-beta.  
+    moves.sort((a, b) => {  
+        // Simple ordenamiento: priorizar capturas  
+        const valA = a.captured ? pieceValues[a.captured] : 0;  
+        const valB = b.captured ? pieceValues[b.captured] : 0;  
+        return valB - valA; // Mayor valor de captura primero  
+    });  
   
   
     if (isMaximizing) {  
         let maxEval = -Infinity;  
         for (let i = 0; i < maxMovesToConsider; i++) {  
             const move = moves[i];  
-            // *** CORRECCIÓN CLAVE: Usar new Chess(gameState.fen()) en lugar de gameState.copy() ***  
-            const tempGame = new Chess(gameState.fen());  
-            tempGame.move(move); // Realizar el movimiento en la COPIA  
+            const tempGame = new Chess(gameState.fen()); // Usar new Chess(fen) para copiar el estado  
+            tempGame.move(move);  
   
             const eval = minimax(tempGame, depth - 1, alpha, beta, false, difficulty);  
   
@@ -125,9 +267,8 @@ function minimax(gameState, depth, alpha, beta, isMaximizing, difficulty) {
         let minEval = Infinity;  
         for (let i = 0; i < maxMovesToConsider; i++) {  
             const move = moves[i];  
-            // *** CORRECCIÓN CLAVE: Usar new Chess(gameState.fen()) en lugar de gameState.copy() ***  
-            const tempGame = new Chess(gameState.fen());  
-            tempGame.move(move); // Realizar el movimiento en la COPIA  
+            const tempGame = new Chess(gameState.fen()); // Usar new Chess(fen) para copiar el estado  
+            tempGame.move(move);  
   
             const eval = minimax(tempGame, depth - 1, alpha, beta, true, difficulty);  
   
@@ -153,15 +294,17 @@ function findBestMoveWithMinimax(gameState, depth, difficulty) {
     let bestMove = null;  
     let bestScore = -Infinity;  
   
-    moves.sort((a, b) => a.san.localeCompare(b.san));  
-  
+    // Ordenar movimientos heurísticamente para ayudar a la poda alfa-beta  
+    moves.sort((a, b) => {  
+        const valA = a.captured ? pieceValues[a.captured] : 0;  
+        const valB = b.captured ? pieceValues[b.captured] : 0;  
+        return valB - valA;  
+    });  
   
     for (const move of moves) {  
-        // *** CORRECCIÓN CLAVE: Usar new Chess(gameState.fen()) en lugar de gameState.copy() ***  
-        const tempGame = new Chess(gameState.fen());  
-        tempGame.move(move); // Realizar el movimiento en la COPIA  
+        const tempGame = new Chess(gameState.fen()); // Usar new Chess(fen) para copiar el estado  
+        tempGame.move(move);  
   
-        // El turno cambia después de move(), así que el siguiente jugador es el minimizador (false)  
         const score = minimax(tempGame, depth - 1, -Infinity, Infinity, false, difficulty);  
   
         if (score > bestScore) {  
@@ -189,19 +332,37 @@ async function evaluateWithStockfish(depth = 2, customTimeout = 300) {
                 return;  
             }  
   
+            // Realiza una evaluación local de la posición actual  
             const score = evaluatePositionLocal(window.game);  
             const moves = window.game.moves({ verbose: true });  
             let bestMoveDisplay = null;  
+            let pvForDisplay = [];  
+  
             if (moves.length > 0) {  
-                bestMoveDisplay = moves[0].from + moves[0].to + (moves[0].promotion ? moves[0].promotion : '');  
+                // Para el display rápido, podemos hacer una mini-búsqueda de un solo movimiento  
+                // o simplemente mostrar el primer movimiento legal como un placeholder.  
+                // Aquí, para mejorar un poco la sugerencia, podemos usar findBestMoveWithMinimax  
+                // con una profundidad muy superficial (ej. profundidad 1 o 2)  
+                const bestMoveObj = findBestMoveWithMinimax(new Chess(window.game.fen()), 1, 3); // Profundidad 1, dificultad media  
+  
+                if (bestMoveObj) {  
+                    bestMoveDisplay = bestMoveObj.from + bestMoveObj.to + (bestMoveObj.promotion ? bestMoveObj.promotion : '');  
+                    // Para la PV en el display rápido, solo incluimos el mejor movimiento si existe  
+                    pvForDisplay.push(bestMoveDisplay);  
+                } else {  
+                     // Si no se encuentra un mejor movimiento (por ejemplo, sin movimientos legales),  
+                    // toma el primer movimiento disponible como fallback para el display.  
+                    bestMoveDisplay = moves[0].from + moves[0].to + (moves[0].promotion ? moves[0].promotion : '');  
+                    pvForDisplay.push(bestMoveDisplay);  
+                }  
             }  
   
   
             resolve({  
-                score: score * 100,  
+                score: score, // evaluatePositionLocal ya devuelve centipeones  
                 bestMove: bestMoveDisplay,  
-                depth: depth,  
-                pv: bestMoveDisplay ? [bestMoveDisplay] : []  
+                depth: depth, // Esto es más una referencia que una profundidad real de búsqueda aquí  
+                pv: pvForDisplay  
             });  
         }, customTimeout);  
     });  
@@ -264,7 +425,7 @@ async function makeAIMove() {
   
     console.log(`IA nivel ${difficulty} (profundidad ${depth})...`);  
   
-    // *** CORRECCIÓN CLAVE: Usar new Chess(window.game.fen()) en lugar de window.game.copy() ***  
+    // Pasar una COPIA del estado del juego a findBestMoveWithMinimax  
     const bestMove = findBestMoveWithMinimax(new Chess(window.game.fen()), depth, difficulty);  
   
     if (!bestMove) {  
@@ -286,11 +447,13 @@ async function updateEvaluationDisplay() {
     }  
   
     try {  
-        const result = await evaluateWithStockfish(2, 300);  
+        const result = await evaluateWithStockfish(2, 300); // Llamada rápida para el display  
   
+        // score ya viene en centipeones de evaluatePositionLocal  
         const scoreValue = (result.score / 100).toFixed(2);  
         const depthValue = result.depth;  
-        const bestMoveValue = result.bestMove || 'N/A';  
+        const bestMoveValue = result.bestMove ? result.bestMove.slice(0, 4) : 'N/A'; // Muestra solo from/to  
+        const pvDisplay = result.pv && result.pv.length > 0 ? result.pv.join(' ') : 'N/A';  
   
         const currentScoreElem = document.getElementById('currentScoreDisplay');  
         if (currentScoreElem) currentScoreElem.textContent = scoreValue;  
@@ -301,14 +464,17 @@ async function updateEvaluationDisplay() {
         const bestMoveSuggestionElem = document.getElementById('bestMoveSuggestionDisplay');  
         if (bestMoveSuggestionElem) bestMoveSuggestionElem.textContent = bestMoveValue;  
   
+        const currentPVDisplayElem = document.getElementById('currentPVDisplay'); // Nuevo ID para la PV  
+        if (currentPVDisplayElem) currentPVDisplayElem.textContent = pvDisplay;  
+  
         const evalScoreDiv = document.getElementById('evalScore');  
-        if (evalScoreDiv) evalScoreDiv.textContent = (result.score / 100).toFixed(1);  
+        if (evalScoreDiv) evalScoreDiv.textContent = (result.score / 100).toFixed(1); // En peones para la barra  
   
         if (typeof window.updateEvalBar === 'function') {  
-            window.updateEvalBar(result.score);  
+            window.updateEvalBar(result.score); // Pasar score en centipeones  
         }  
     } catch (e) {  
-        // Silenciar  
+        console.error("Error al actualizar la evaluación en el display:", e);  
     }  
 }  
   
