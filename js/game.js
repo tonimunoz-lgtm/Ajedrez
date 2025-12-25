@@ -346,7 +346,7 @@ function giveCoachFeedback(type, message = null) {
 async function updateUI() {  
     renderBoard(); // Redibujar el tablero  
     // Llamada a la función global de stockfish-ai.js para actualizar la evaluación en el panel lateral  
-    await window.updateEvaluationDisplay();   
+    //await window.updateEvaluationDisplay();   
     updateLastMoveInfo(); // Actualizar información del último movimiento  
     updateMoveHistory(); // Actualizar historial de movimientos  
     updateStats(); // Actualizar estadísticas rápidas  
