@@ -41,31 +41,11 @@ const coachPhrases = {
  * @returns {number} El score de la posición (positivo para blancas, negativo para negras).  
  */  
 function _internalEvaluatePosition() {  
-    const board = game.board();  
-    let score = 0;  
-    const pieceValues = { 'p': 1, 'n': 3, 'b': 3.25, 'r': 5, 'q': 9, 'k': 0 }; // Valores de piezas estándar  
-  
-    // Evaluar material  
-    for (let i = 0; i < 8; i++) {  
-        for (let j = 0; j < 8; j++) {  
-            const piece = board[i][j];  
-            if (!piece) continue;  
-            const val = pieceValues[piece.type] || 0;  
-            if (piece.color === 'w') {  
-                score += val;  
-            } else {  
-                score -= val;  
-            }  
-        }  
-    }  
-  
-    // Evaluar movilidad (muy simplista)  
-    // Se añade un pequeño valor por cada movimiento legal posible.  
-    // Stockfish hace esto mucho más sofisticado.  
-    const moves = game.moves();  
-    score += (moves.length * 0.05) * (game.turn() === 'w' ? 1 : -1);  
-  
-    return score;  
+    // Esta función ya no es necesaria aquí ya que evaluatePositionLocal se movió a stockfish-ai.js  
+    // y es llamada por window.evaluateWithStockfish.  
+    // Mantenemos el esqueleto por si en algún momento se necesitara una evaluación *completamente* independiente.  
+    // Por ahora, simplemente delegaremos o devolveremos un valor base.  
+    return 0; // O llama a evaluatePositionLocal directamente si fuera necesario y accesible  
 }  
   
 /**  
@@ -147,7 +127,7 @@ function renderBoard() {
 }  
   
   
-// ===================== MANEJO DE CLICKS EN CUADRADOS =====================  
+// ===================== MANEJO DE CLICS EN CUADRADOS =====================  
   
 /**  
  * Maneja el evento de click en un cuadrado del tablero.  
@@ -192,7 +172,7 @@ async function handleSquareClick(square) {
                     aiThinking = true;  
                     // Mostrar indicador de pensamiento de la IA en el coachMessage  
                     document.getElementById('coachMessage').innerHTML = '<strong>Pensando...</strong> <span class="loading"></span>';  
-                    document.getElementById('coachMessage').classList.remove('good', 'bad'); // Limpiar estilos previos  
+                    document.getElementById('coachMessage').classList.remove('good', 'bad', 'hint', 'neutral'); // Limpiar estilos previos  
   
                     // Pequeño retraso para la experiencia de usuario (ver mensaje "pensando")  
                     setTimeout(async () => {  
@@ -255,13 +235,13 @@ async function evaluateMoveQuality(playerMove) {
     game.undo(); // Deshacer el movimiento del jugador para volver a la posición anterior  
     // Usamos evaluateWithStockfish de stockfish-ai.js  
     const prevEvalResult = await window.evaluateWithStockfish(10); // Profundidad moderada para rapidez  
-    const prevScore = prevEvalResult.score; // Score desde la perspectiva de las blancas  
+    const prevScore = prevEvalResult.score; // Score desde la perspectiva de las blancas (en centipeones)  
   
     game.move(playerMove); // Rehacer el movimiento del jugador  
   
     // Obtener la evaluación DESPUÉS del movimiento del jugador  
     const currentEvalResult = await window.evaluateWithStockfish(10);  
-    const currentScore = currentEvalResult.score; // Score desde la perspectiva de las blancas  
+    const currentScore = currentEvalResult.score; // Score desde la perspectiva de las blancas (en centipeones)  
   
     // Actualizar la evaluación global de Stockfish para la UI  
     currentStockfishScore = currentEvalResult.score;  
@@ -274,15 +254,15 @@ async function evaluateMoveQuality(playerMove) {
         scoreDifference = prevScore - currentScore; // Si negras movieron, un score más bajo (para blancas) es mejor para ellas  
     }  
   
-    // Definir umbrales para clasificar la calidad del movimiento  
+    // Definir umbrales para clasificar la calidad del movimiento (en centipeones)  
     let quality = 'good'; // Por defecto  
-    if (scoreDifference > 100) { // Mejoró significativamente (+1 peón, centipeones)  
+    if (scoreDifference > 100) { // Mejoró significativamente (+1 peón)  
         quality = 'excellent';  
-    } else if (scoreDifference > 20) { // Mejoró ligeramente (+0.2 peones, centipeones)  
+    } else if (scoreDifference > 20) { // Mejoró ligeramente (+0.2 peones)  
         quality = 'good';  
-    } else if (scoreDifference < -20 && scoreDifference >= -80) { // Empeoró un poco (entre -0.2 y -0.8 peones, centipeones)  
+    } else if (scoreDifference < -20 && scoreDifference >= -80) { // Empeoró un poco (entre -0.2 y -0.8 peones)  
         quality = 'mistake';  
-    } else if (scoreDifference < -80) { // Empeoró mucho (más de -0.8 peones, centipeones)  
+    } else if (scoreDifference < -80) { // Empeoró mucho (más de -0.8 peones)  
         quality = 'blunder';  
     } else {  
         quality = 'good'; // Si el cambio es muy pequeño, se considera un movimiento neutral o bueno  
@@ -330,6 +310,9 @@ function giveCoachFeedback(type, message = null) {
     } else if (type === 'hint') {  
         icon = '💡';  
         className += ' hint'; // Clase específica para las pistas  
+    } else if (type === 'neutral') { // Para resultados de tablas, etc.  
+        icon = '🤝';  
+        className += ' neutral';  
     }  
   
     coachMsg.innerHTML = `<strong>${icon}</strong> ${phrase}`;  
@@ -359,7 +342,7 @@ async function updateUI() {
 /**  
  * Actualiza visualmente la barra de evaluación vertical y el score numérico.  
  * Esta función es llamada por `window.updateEvaluationDisplay()` (en `stockfish-ai.js`).  
- * @param {number} score - El score de Stockfish actual de la posición (en centipeones, desde la perspectiva de las blancas).  
+ * @param {number} score - El score de Stockfish actual de la posición (en centipeones, positivo para blancas).  
  */  
 function updateEvalBar(score) {  
     const prob = calculateWinProbability(score);  
@@ -368,6 +351,7 @@ function updateEvalBar(score) {
     // Un score de 1000 (10 peones) se considera una ventaja muy grande.  
     const maxScore = 1000;  
     // Si es el turno de negras, invertimos el score para la barra visual, pero mantenemos el valor original para prob.  
+    // Esto hace que la barra suba para el jugador cuyo turno es.  
     const scoreForBar = game.turn() === 'b' ? -score : score;  
   
     let percentage = 50 + (scoreForBar / (maxScore * 2)) * 100; // Normalizar a un rango de 0-100%  
@@ -511,17 +495,8 @@ function showGameOver() {
     if (game.in_checkmate()) {  
         message = `¡Jaque Mate! ${game.turn() === 'w' ? 'Negras' : 'Blancas'} ganan.`;  
         className = 'bad'; // Si pierdes, podría ser 'bad'  
-    } else if (game.in_draw()) {  
+    } else if (game.in_draw() || game.in_stalemate() || game.in_threefold_repetition() || game.insufficient_material()) {  
         message = "¡Tablas!";  
-        className = 'neutral';  
-    } else if (game.in_stalemate()) {  
-        message = "¡Ahogado! Tablas.";  
-        className = 'neutral';  
-    } else if (game.in_threefold_repetition()) {  
-        message = "¡Tablas por triple repetición!";  
-        className = 'neutral';  
-    } else if (game.insufficient_material()) {  
-        message = "¡Tablas por material insuficiente!";  
         className = 'neutral';  
     }  
     const coachMsg = document.getElementById('coachMessage');  
@@ -673,7 +648,8 @@ async function performAnalysis() {
         if (analysisLoading) analysisLoading.style.display = 'none';  
   
         // --- Fallback a evaluación local si Stockfish no está disponible ---  
-        const localScore = _internalEvaluatePosition();  
+        // Llamar directamente a la función de evaluación local de stockfish-ai.js  
+        const localScore = window.evaluatePositionLocal ? window.evaluatePositionLocal(game) : 0;  
         const localProb = calculateWinProbability(localScore);  
   
         // Actualizar elementos del modal con valores locales/predefinidos  
@@ -751,11 +727,10 @@ async function performAnalysis() {
     }  
   
     // Evaluación por fases del juego y material  
-    // Esto se hace con lógica local ya que Stockfish solo devuelve el score total por defecto  
     const board = game.board();  
     let material = 0;  
     // Valores de piezas en centipeones para material  
-    const pieceValuesMaterial = { 'p': 100, 'n': 300, 'b': 325, 'r': 500, 'q': 900 };  
+    const pieceValuesMaterial = { 'p': 100, 'n': 320, 'b': 330, 'r': 500, 'q': 900 };  
     for (let row of board) {  
         for (let p of row) {  
             if (!p) continue;  
@@ -791,52 +766,45 @@ async function performAnalysis() {
  * @returns {string} La secuencia de movimientos convertida a SAN (ej. "e4 e5 Nf3").  
  */  
 function convertPvUciToSan(pvUciArray, initialFen) {  
-    // Creamos una instancia temporal de Chess.js para simular la PV  
-    // sin afectar el estado actual del juego principal.  
     const tempGame = new Chess(initialFen);  
     const pvSanArray = [];  
   
     for (const uciMove of pvUciArray) {  
-        // Parsear el movimiento UCI en sus componentes  
         const from = uciMove.substring(0, 2);  
         const to = uciMove.substring(2, 4);  
-        // La promoción es el quinto carácter si existe (ej. 'e7e8q'), se pasa a minúscula para chess.js  
         const promotion = uciMove.length > 4 ? uciMove[4].toLowerCase() : undefined;  
   
         try {  
-            // Intentar hacer el movimiento en la instancia temporal del juego  
-            // Chess.js devolverá el objeto de movimiento con la propiedad 'san'  
             const move = tempGame.move({ from, to, promotion });  
             if (move) {  
                 pvSanArray.push(move.san);  
             } else {  
-                // Si por alguna razón el movimiento UCI no es válido en el contexto de tempGame,  
-                // lo añadimos tal cual y emitimos una advertencia. Esto no debería pasar con PVs válidas de Stockfish.  
                 console.warn(`Movimiento UCI inválido en PV: '${uciMove}' en FEN: '${tempGame.fen()}'`);  
-                pvSanArray.push(uciMove); // Fallback a UCI si no se puede convertir a SAN  
-                break; // Detener la conversión si un movimiento es inválido  
+                pvSanArray.push(uciMove);  
+                break;  
             }  
         } catch (error) {  
             console.error(`Error al procesar movimiento UCI '${uciMove}' en FEN '${tempGame.fen()}':`, error);  
-            pvSanArray.push(uciMove); // Añadir el UCI si hay un error en el procesamiento  
-            break; // Detener la conversión si hay un error  
+            pvSanArray.push(uciMove);  
+            break;  
         }  
     }  
-    return pvSanArray.join(' '); // Unir todos los movimientos SAN con espacios  
+    return pvSanArray.join(' ');  
 }  
   
   
 // ===================== EXPORTAR GLOBALES =====================  
-// Asignamos variables y funciones al objeto `window` para que sean accesibles  
-// desde otros scripts o el HTML directamente, ya que no estamos usando módulos ES6.  
 window.game = game;  
-window.updateEvalBar = updateEvalBar; // Necesario para que stockfish-ai.js pueda llamarla  
-window.renderBoard = renderBoard; // Puede que se necesite en index.html  
-window.updateUI = updateUI; // La función principal para refrescar la interfaz  
+window.updateEvalBar = updateEvalBar;  
+window.renderBoard = renderBoard;  
+window.updateUI = updateUI;  
 window.resetGame = resetGame;  
 window.undoMove = undoMove;  
 window.flipBoard = flipBoard;  
 window.requestHint = requestHint;  
 window.analysisMode = analysisMode;  
 window.closeAnalysis = closeAnalysis;  
-window.convertPvUciToSan = convertPvUciToSan; // La nueva función de conversión  
+window.convertPvUciToSan = convertPvUciToSan;  
+// Exponer evaluatePositionLocal para el fallback en analysisMode  
+window.evaluatePositionLocal = window.evaluatePositionLocal || null; // Asegurarse de que esté definida, si stockfish-ai.js la exporta  
+  
