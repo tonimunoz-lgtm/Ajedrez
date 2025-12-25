@@ -119,39 +119,47 @@ function evaluateKingSafety(board, kingPos) {
 }
 
 /**  
- * Encuentra el mejor movimiento analizando opciones
+ * Encuentra el mejor movimiento analizando más opciones según dificultad
  */
-function findBestMoveLocal(gameState, depth = 3) {
+function findBestMoveLocal(gameState, depth = 3, difficulty = 3) {
     const moves = gameState.moves({ verbose: true });
     if (moves.length === 0) return null;
     
     let bestMove = moves[0];
     let bestScore = -Infinity;
     
-    // Analizar hasta 20 movimientos (limitar para velocidad)
-    const movesToAnalyze = Math.min(moves.length, 20);
+    // Más opciones analizar = más dificultad
+    const movesToAnalyzeMap = {
+        1: 5,    // Novato - analiza pocas opciones
+        2: 10,   // Intermedio
+        3: 15,   // Avanzado
+        4: 25,   // Experto
+        5: Math.min(moves.length, 30)  // Maestro - casi todas
+    };
     
-    for (let i = 0; i < movesToAnalyze; i++) {
+    const movesToAnalyze = movesToAnalyzeMap[difficulty] || 15;
+    
+    for (let i = 0; i < movesToAnalyze && i < moves.length; i++) {
         const move = moves[i];
         gameState.move(move);
         
         let moveScore = -evaluatePositionLocal(gameState);
         
-        // Bonus por capturas
+        // Bonus por capturas (aumenta con dificultad)
         if (move.capture) {
             const pieceValues = { 'p': 1, 'n': 3, 'b': 3.25, 'r': 5, 'q': 9 };
             const captureValue = pieceValues[move.capture] || 1;
-            moveScore += captureValue * 1.5;
+            moveScore += captureValue * (1 + (difficulty * 0.3));
         }
         
         // Bonus por jaque
         if (move.check) {
-            moveScore += 1.5;
+            moveScore += (1.5 * difficulty);
         }
         
         // Bonus por jaquemate
         if (gameState.in_checkmate()) {
-            moveScore += 100;
+            moveScore += 1000;
         }
         
         gameState.undo();
