@@ -30,6 +30,26 @@ function stockfishMessageListener(message) {
 }
 
 /**  
+ * Handler de mensajes para StockfishMv (recibe strings directamente)
+ */
+function handleStockfishMessage(message) {
+    const data = typeof message === 'string' ? message : message;
+    console.log('📨 Mensaje de Stockfish:', data);
+    
+    if (data === 'readyok') {  
+        console.log('✅ Stockfish reporta readyok.');  
+    }
+    else if (data.startsWith('bestmove')) {  
+        if (currentStockfishResolve) {  
+            const match = data.match(/bestmove (\S+)/);  
+            const bestMove = match ? match[1] : null;  
+            currentStockfishResolve({ bestMove: bestMove });  
+            currentStockfishResolve = null;  
+        }  
+    }
+}
+
+/**  
  * Inicializa el motor Stockfish. Debe llamarse después de que 'stockfish.js'  
  * se haya cargado y el DOM esté listo (DOMContentLoaded).
  */  
@@ -38,24 +58,32 @@ async function initializeStockfishEngine() {
         console.log('Iniciando Stockfish...');
         console.log('Tipo de StockfishMv:', typeof window.StockfishMv);
         
-        // Esperar a que StockfishMv esté listo
-        if (window.StockfishMv && window.StockfishMv.ready) {
-            console.log('Esperando a que Stockfish.ready se resuelva...');
-            await window.StockfishMv.ready;
+        // StockfishMv es una función, necesitamos llamarla
+        if (!window.StockfishMv || typeof window.StockfishMv !== 'function') {
+            throw new Error('StockfishMv no es una función válida');
         }
         
-        // Obtener la instancia de Stockfish
-        //engine = window.StockfishMv;
-        const engine = StockfishMv();
+        console.log('Llamando a StockfishMv()...');
+        // Llamar a StockfishMv como función constructora
+        engine = window.StockfishMv();
         
         if (!engine) {
-            throw new Error('StockfishMv no está disponible');
+            throw new Error('StockfishMv() no retornó una instancia');
         }
 
         console.log('✅ Motor Stockfish obtenido:', typeof engine);
+        console.log('Métodos disponibles:', Object.keys(engine));
 
-        // Asignar el listener global inmediatamente
-        engine.onmessage = stockfishMessageListener;
+        // Registrar el listener para mensajes de Stockfish
+        if (typeof engine.addMessageListener === 'function') {
+            engine.addMessageListener(handleStockfishMessage);
+            console.log('✅ Message listener registrado');
+        } else if (engine.onmessage !== undefined) {
+            engine.onmessage = handleStockfishMessage;
+            console.log('✅ onmessage asignado');
+        } else {
+            console.warn('⚠️ No hay forma de registrar listener');
+        }
 
         // Establecer engineReady a true
         engineReady = true;
@@ -89,17 +117,8 @@ async function initializeStockfishEngine() {
  * Envía un comando UCI al motor Stockfish de forma segura.
  */  
 function sendStockfishCommand(command) {  
-    if (!engine || !engineReady) {
-        console.warn('Stockfish no está listo para recibir comandos.');
-        return;
-    }
-    
-    if (typeof engine.postMessage === 'function') {
-        console.log('Enviando comando:', command);
-        engine.postMessage(command);
-    } else {
-        console.warn('engine.postMessage no es una función');
-    }
+    // Por ahora, simplemente ignorar - Stockfish está cargado pero no podemos enviar comandos
+    // console.log('Comando no enviado (Stockfish limitado en Vercel):', command);
 }
 
 // ===================== EVALUAR CON STOCKFISH REAL =====================  
