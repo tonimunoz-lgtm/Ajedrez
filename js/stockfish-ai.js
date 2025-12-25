@@ -7,7 +7,7 @@ let engineReady = false;
  */  
 async function initializeStockfishEngine() {  
     try {
-        console.log('Inicializando Stockfish API (Chess.com)...');
+        console.log('Inicializando Stockfish API (Stockfish.online)...');
         
         engineReady = true;
         window.engineReady = true;
@@ -16,7 +16,7 @@ async function initializeStockfishEngine() {
 
         const coachMessageElem = document.getElementById('coachMessage');
         if (coachMessageElem) {
-            coachMessageElem.innerHTML = '<strong>✅ Stockfish Real</strong> Motor profesional activado vía API.';
+            coachMessageElem.innerHTML = '<strong>✅ Stockfish Real</strong> Motor profesional en línea activado.';
         }
 
     } catch (e) {
@@ -29,7 +29,7 @@ async function initializeStockfishEngine() {
 // ===================== EVALUAR CON CHESS.COM API =====================  
 
 /**  
- * Evalúa una posición usando Chess.com Stockfish API
+ * Evalúa una posición usando Stockfish Online API (sin CORS)
  */  
 async function evaluateWithStockfish(depth = 20, customTimeout = 5000) {  
     return new Promise(async (resolve) => {
@@ -41,8 +41,8 @@ async function evaluateWithStockfish(depth = 20, customTimeout = 5000) {
 
             const fen = window.game.fen();
             
-            // Usar Chess.com API de Stockfish
-            const url = `https://chess.com/api/v1/chess/stockfish?fen=${encodeURIComponent(fen)}&depth=${Math.min(depth, 20)}`;
+            // Usar stockfish.online API (sin restricciones CORS)
+            const url = `https://stockfish.online/api/s/v2.php?fen=${encodeURIComponent(fen)}&depth=${Math.min(depth, 20)}`;
             
             const controller = new AbortController();
             const timeoutId = setTimeout(() => controller.abort(), customTimeout);
@@ -59,11 +59,11 @@ async function evaluateWithStockfish(depth = 20, customTimeout = 5000) {
             
             if (data.bestmove) {
                 const bestMove = data.bestmove.split(' ')[0];
-                const score = data.evaluation || 0;
+                const score = (data.score || 0) * 100; // Convertir a centipeones
                 const pv = data.pv ? data.pv.split(' ') : [];
                 
                 resolve({ 
-                    score: score * 100,
+                    score: score,
                     bestMove: bestMove, 
                     depth: Math.min(depth, 20), 
                     pv: pv
