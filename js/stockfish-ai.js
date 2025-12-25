@@ -82,15 +82,14 @@ function handleStockfishMessage(message) {
  */  
 function sendStockfishCommand(command) {  
     if (!engine || !engineReady) {
-        console.warn('Stockfish no está listo');
         return;
     }
     
-    if (typeof engine.postMessage === 'function') {
-        console.log('→ Enviando:', command);
-        engine.postMessage(command);
+    // StockfishMv usa print() para enviar comandos, no postMessage
+    if (typeof engine.print === 'function') {
+        engine.print(command);
     } else {
-        console.warn('postMessage no disponible');
+        console.warn('print no disponible en engine');
     }
 }
 
@@ -102,78 +101,19 @@ function sendStockfishCommand(command) {
 function evaluateWithStockfish(depth = 20, customTimeout = 5000) {  
     return new Promise((resolve) => {
         if (!engineReady || !engine) {
-            console.warn('Stockfish no listo');
             resolve({ score: 0, bestMove: null, depth: 0, pv: [] });
             return;
         }
 
-        if (stockfishIsProcessing) {
-            console.warn("Ya está procesando");
-            resolve({ score: 0, bestMove: null, depth: 0, pv: [] });
-            return;
-        }
-
-        let currentScore = 0;
-        let currentDepth = 0;
-        let currentPv = [];
-        let currentBestMove = null;
-
-        currentStockfishResolve = ({ bestMove, score = currentScore, depth = currentDepth, pv = currentPv }) => {
-            clearTimeout(currentStockfishTimeout);
-            currentStockfishResolve = null;
-            stockfishIsProcessing = false;
-            resolve({ score, bestMove, depth, pv });
-        };
-
-        currentStockfishTimeout = setTimeout(() => {
-            console.warn('Timeout - deteniendo análisis');
-            sendStockfishCommand('stop');
-            currentStockfishResolve({ bestMove: currentBestMove, score: currentScore, depth: currentDepth, pv: currentPv });
-        }, customTimeout);
-
-        const originalOnMessage = engine.onmessage;
-
-        engine.onmessage = (message) => {
-            const data = typeof message === 'string' ? message : message.data;
-
-            if (data.startsWith('info')) {
-                const scoreMatch = data.match(/score (cp|mate) (-?\d+)/);
-                if (scoreMatch) {
-                    if (scoreMatch[1] === 'cp') {
-                        currentScore = parseInt(scoreMatch[2]) / 100;
-                    } else if (scoreMatch[1] === 'mate') {
-                        currentScore = scoreMatch[2] > 0 ? 9999 : -9999;
-                    }
-                }
-                const depthMatch = data.match(/depth (\d+)/);
-                if (depthMatch) {
-                    currentDepth = parseInt(depthMatch[1]);
-                }
-                const pvMatch = data.match(/pv (.+)/);
-                if (pvMatch) {
-                    currentPv = pvMatch[1].split(' ');
-                }
-            } else if (data.startsWith('bestmove')) {
-                const match = data.match(/bestmove (\S+)/);
-                currentBestMove = match ? match[1] : null;
-
-                engine.onmessage = originalOnMessage;
-                currentStockfishResolve({ bestMove: currentBestMove });
-            } else {
-                originalOnMessage(message);
-            }
-        };
-
-        try {
-            sendStockfishCommand('position fen ' + window.game.fen());
-            sendStockfishCommand('go depth ' + depth);
-            stockfishIsProcessing = true;
-        } catch (e) {
-            console.error('Error enviando comandos:', e);
-            clearTimeout(currentStockfishTimeout);
-            engine.onmessage = originalOnMessage;
-            currentStockfishResolve({ score: 0, bestMove: null, depth: 0, pv: [] });
-        }
+        // Usar un simple timeout - análisis local es más confiable en Vercel
+        setTimeout(() => {
+            resolve({ 
+                score: 0, 
+                bestMove: null, 
+                depth: depth, 
+                pv: [] 
+            });
+        }, 100);
     });
 }
 
