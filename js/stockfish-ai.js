@@ -1,4 +1,4 @@
-// js/stockfish-ai.js - EVALUADOR LOCAL PROFESIONAL
+// js/stockfish-ai.js - IA CON MINIMAX REAL
 
 let engineReady = false;
 
@@ -29,7 +29,7 @@ async function initializeStockfishEngine() {
 // ===================== EVALUADOR LOCAL INTELIGENTE =====================  
 
 /**  
- * Evalúa una posición analizando material, posición y tácticas
+ * Evalúa una posición
  */
 function evaluatePositionLocal(gameState) {
     const board = gameState.board();
@@ -37,7 +37,7 @@ function evaluatePositionLocal(gameState) {
     
     const pieceValues = { 'p': 1, 'n': 3, 'b': 3.25, 'r': 5, 'q': 9, 'k': 0 };
     
-    // Evaluar material
+    // Material
     for (let row = 0; row < 8; row++) {
         for (let col = 0; col < 8; col++) {
             const piece = board[row][col];
@@ -45,24 +45,20 @@ function evaluatePositionLocal(gameState) {
             
             let pieceScore = pieceValues[piece.type] || 0;
             
-            // Bonificación por posición central (especialmente para caballos, alfiles, reina)
             const distToCenter = Math.abs(row - 3.5) + Math.abs(col - 3.5);
             if (['n', 'b', 'q'].includes(piece.type) && distToCenter < 4) {
                 pieceScore += 0.3;
             }
             
-            // Penalización para piezas en los bordes
             if (['n', 'b'].includes(piece.type) && (col === 0 || col === 7)) {
                 pieceScore -= 0.2;
             }
             
-            // Bonificación para peones avanzados
             if (piece.type === 'p') {
                 const rankBonus = piece.color === 'w' ? (6 - row) * 0.1 : (row - 1) * 0.1;
                 pieceScore += rankBonus;
             }
             
-            // Aplicar color
             if (piece.color === 'w') {
                 score += pieceScore;
             } else {
@@ -71,101 +67,76 @@ function evaluatePositionLocal(gameState) {
         }
     }
     
-    // Evaluar movilidad (muy importante)
+    // Movilidad
     const moves = gameState.moves();
     score += (moves.length * 0.08) * (gameState.turn() === 'w' ? 1 : -1);
-    
-    // Evaluar seguridad del rey
-    const kingPos = findKingPosition(board);
-    if (kingPos) {
-        const kingScore = evaluateKingSafety(board, kingPos);
-        score += (gameState.turn() === 'w' ? 1 : -1) * kingScore;
-    }
     
     return score;
 }
 
+// ===================== MINIMAX CON PODA ALFA-BETA =====================  
+
 /**  
- * Encuentra la posición del rey del turno actual
+ * Minimax con poda alfa-beta
  */
-function findKingPosition(board) {
-    for (let row = 0; row < 8; row++) {
-        for (let col = 0; col < 8; col++) {
-            const piece = board[row][col];
-            if (piece && piece.type === 'k') return { row, col };
-        }
+function minimax(gameState, depth, alpha, beta, isMaximizing, difficulty) {
+    if (depth === 0 || gameState.game_over()) {
+        return evaluatePositionLocal(gameState);
     }
-    return null;
+    
+    const moves = gameState.moves({ verbose: true });
+    if (moves.length === 0) {
+        return evaluatePositionLocal(gameState);
+    }
+    
+    // Limitar movimientos según dificultad
+    const moveLimits = { 1: 3, 2: 5, 3: 8, 4: 12, 5: moves.length };
+    const maxMoves = Math.min(moves.length, moveLimits[difficulty] || 8);
+    
+    if (isMaximizing) {
+        let maxEval = -Infinity;
+        for (let i = 0; i < maxMoves; i++) {
+            const move = moves[i];
+            gameState.move(move);
+            const eval = minimax(gameState, depth - 1, alpha, beta, false, difficulty);
+            gameState.undo();
+            maxEval = Math.max(maxEval, eval);
+            alpha = Math.max(alpha, eval);
+            if (beta <= alpha) break;
+        }
+        return maxEval;
+    } else {
+        let minEval = Infinity;
+        for (let i = 0; i < maxMoves; i++) {
+            const move = moves[i];
+            gameState.move(move);
+            const eval = minimax(gameState, depth - 1, alpha, beta, true, difficulty);
+            gameState.undo();
+            minEval = Math.min(minEval, eval);
+            beta = Math.min(beta, eval);
+            if (beta <= alpha) break;
+        }
+        return minEval;
+    }
 }
 
 /**  
- * Evalúa la seguridad del rey
+ * Encuentra el mejor movimiento usando minimax
  */
-function evaluateKingSafety(board, kingPos) {
-    let safety = 0;
-    const { row, col } = kingPos;
-    
-    // Verificar si hay peones defensores alrededor
-    for (let r = Math.max(0, row - 1); r <= Math.min(7, row + 1); r++) {
-        for (let c = Math.max(0, col - 1); c <= Math.min(7, col + 1); c++) {
-            const piece = board[r][c];
-            if (piece && piece.type === 'p') {
-                safety += 0.3;
-            }
-        }
-    }
-    
-    return safety;
-}
-
-/**  
- * Encuentra el mejor movimiento analizando más opciones según dificultad
- */
-function findBestMoveLocal(gameState, depth = 3, difficulty = 3) {
+function findBestMoveWithMinimax(gameState, depth, difficulty) {
     const moves = gameState.moves({ verbose: true });
     if (moves.length === 0) return null;
     
     let bestMove = moves[0];
     let bestScore = -Infinity;
     
-    // Más opciones analizar = más dificultad
-    const movesToAnalyzeMap = {
-        1: 5,    // Novato - analiza pocas opciones
-        2: 10,   // Intermedio
-        3: 15,   // Avanzado
-        4: 25,   // Experto
-        5: Math.min(moves.length, 30)  // Maestro - casi todas
-    };
-    
-    const movesToAnalyze = movesToAnalyzeMap[difficulty] || 15;
-    
-    for (let i = 0; i < movesToAnalyze && i < moves.length; i++) {
-        const move = moves[i];
+    for (const move of moves) {
         gameState.move(move);
-        
-        let moveScore = -evaluatePositionLocal(gameState);
-        
-        // Bonus por capturas (aumenta con dificultad)
-        if (move.capture) {
-            const pieceValues = { 'p': 1, 'n': 3, 'b': 3.25, 'r': 5, 'q': 9 };
-            const captureValue = pieceValues[move.capture] || 1;
-            moveScore += captureValue * (1 + (difficulty * 0.3));
-        }
-        
-        // Bonus por jaque
-        if (move.check) {
-            moveScore += (1.5 * difficulty);
-        }
-        
-        // Bonus por jaquemate
-        if (gameState.in_checkmate()) {
-            moveScore += 1000;
-        }
-        
+        const score = minimax(gameState, depth - 1, -Infinity, Infinity, false, difficulty);
         gameState.undo();
         
-        if (moveScore > bestScore) {
-            bestScore = moveScore;
+        if (score > bestScore) {
+            bestScore = score;
             bestMove = move;
         }
     }
@@ -176,7 +147,7 @@ function findBestMoveLocal(gameState, depth = 3, difficulty = 3) {
 // ===================== EVALUAR =====================  
 
 /**  
- * Evalúa una posición
+ * Evalúa una posición (rápido, no usa minimax)
  */  
 async function evaluateWithStockfish(depth = 20, customTimeout = 5000) {  
     return new Promise((resolve) => {
@@ -187,8 +158,8 @@ async function evaluateWithStockfish(depth = 20, customTimeout = 5000) {
             }
 
             const score = evaluatePositionLocal(window.game);
-            const bestMoveObj = findBestMoveLocal(window.game, Math.min(depth, 3));
-            const bestMove = bestMoveObj ? bestMoveObj.from + bestMoveObj.to : null;
+            const moves = window.game.moves({ verbose: true });
+            const bestMove = moves.length > 0 ? moves[0].from + moves[0].to : null;
             
             resolve({ 
                 score: score * 100,
@@ -232,7 +203,7 @@ async function getBestMoveStockfish(depth = 20) {
 // ===================== IA JUEGA =====================  
 
 /**  
- * Calcula el movimiento de la IA
+ * Calcula el movimiento de la IA con minimax
  */  
 async function makeAIMove() {  
     if (window.game.game_over()) {
@@ -242,19 +213,21 @@ async function makeAIMove() {
     const difficultyElem = document.getElementById('difficulty');
     const difficulty = difficultyElem ? parseInt(difficultyElem.value) : 3;
 
-    const depthMap = { 1: 2, 2: 2, 3: 3, 4: 3, 5: 4 };
-    const depth = depthMap[difficulty] || 3;
+    // Profundidad según dificultad
+    const depthMap = { 1: 2, 2: 3, 3: 4, 4: 5, 5: 6 };
+    const depth = depthMap[difficulty] || 4;
 
-    console.log(`IA pensando...`);
+    console.log(`IA nivel ${difficulty} (profundidad ${depth})...`);
 
-    const aiMoveObj = await getBestMoveStockfish(depth);
-    return aiMoveObj || null;
+    // Usar minimax para obtener el mejor movimiento
+    const bestMove = findBestMoveWithMinimax(window.game, depth, difficulty);
+    return bestMove || null;
 }
 
 // ===================== ACTUALIZAR INTERFAZ =====================  
 
 /**  
- * Actualiza la evaluación (OPTIMIZADO - menos análisis)
+ * Actualiza la evaluación (OPTIMIZADO)
  */  
 async function updateEvaluationDisplay() {  
     if (!window.game || typeof window.game.fen !== 'function') {
@@ -262,7 +235,6 @@ async function updateEvaluationDisplay() {
     }
 
     try {
-        // Solo hacer análisis rápido (profundidad 2, no 3)
         const result = await evaluateWithStockfish(2, 300);
 
         const scoreValue = (result.score / 100).toFixed(2);
@@ -285,7 +257,7 @@ async function updateEvaluationDisplay() {
             window.updateEvalBar(result.score);
         }
     } catch (e) {
-        // Silenciar errores para que no bloquee la interfaz
+        // Silenciar
     }
 }
 
