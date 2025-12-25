@@ -4,9 +4,10 @@
     <meta charset="UTF-8">  
     <meta name="viewport" content="width=device-width, initial-scale=1.0">  
     <title>Entrenador de Ajedrez Profesional</title>  
-      
+  
     <!-- Tus estilos CSS van aquí -->  
     <style>  
+        /* Estilos generales */  
         * {  
             margin: 0;  
             padding: 0;  
@@ -16,6 +17,7 @@
         html, body {  
             width: 100%;  
             height: 100%;  
+            font-size: 16px; /* Base font size */  
         }  
   
         body {  
@@ -24,15 +26,16 @@
             color: #fff;  
             display: flex;  
             flex-direction: column;  
-            overflow: hidden;  
+            overflow: hidden; /* Evita scroll no deseado en el body */  
         }  
   
+        /* Encabezado */  
         .header {  
             padding: 15px 20px;  
             text-align: center;  
             background: rgba(0, 0, 0, 0.3);  
             border-bottom: 2px solid #00d4ff;  
-            flex-shrink: 0;  
+            flex-shrink: 0; /* Asegura que el header no se encoja */  
         }  
   
         .header h1 {  
@@ -44,19 +47,21 @@
             background-clip: text;  
         }  
   
+        /* Contenedor principal */  
         .main-container {  
             display: flex;  
-            flex: 1;  
+            flex: 1; /* Permite que el contenedor principal ocupe el espacio restante */  
             gap: 20px;  
             padding: 20px;  
-            overflow: hidden;  
+            overflow: hidden; /* Manejo de overflow interno */  
         }  
   
+        /* Sección del tablero y controles */  
         .board-section {  
             display: flex;  
             flex-direction: column;  
             gap: 15px;  
-            flex: 0 0 auto;  
+            flex: 0 0 auto; /* No se estira ni encoge */  
         }  
   
         .board-and-eval {  
@@ -65,6 +70,7 @@
             align-items: flex-start;  
         }  
   
+        /* Tablero de ajedrez */  
         .chessboard {  
             display: grid;  
             grid-template-columns: repeat(8, 1fr);  
@@ -74,7 +80,7 @@
             border: 3px solid #00d4ff;  
             border-radius: 8px;  
             overflow: hidden;  
-            width: 600px;  
+            width: 600px; /* Tamaño fijo para desktop */  
             height: 600px;  
             flex-shrink: 0;  
         }  
@@ -83,7 +89,7 @@
             display: flex;  
             align-items: center;  
             justify-content: center;  
-            font-size: 3.2em;  
+            font-size: 3.2em; /* Tamaño de la pieza */  
             cursor: pointer;  
             user-select: none;  
             transition: all 0.15s;  
@@ -101,19 +107,21 @@
             background: #b58863;  
         }  
   
+        /* Resaltados */  
         .square.selected {  
-            background: #baca44 !important;  
+            background: #baca44 !important; /* Cuadrado seleccionado por el jugador */  
             box-shadow: inset 0 0 20px rgba(186, 202, 68, 0.8);  
         }  
   
         .square.highlight {  
-            background: rgba(186, 202, 68, 0.6) !important;  
+            background: rgba(186, 202, 68, 0.6) !important; /* Movimientos legales */  
         }  
   
         .square.last-move {  
-            background: rgba(255, 255, 100, 0.4) !important;  
+            background: rgba(255, 255, 100, 0.4) !important; /* Último movimiento */  
         }  
   
+        /* Barra de evaluación vertical */  
         .eval-bar-vertical {  
             display: flex;  
             flex-direction: column;  
@@ -144,7 +152,7 @@
             border-radius: 6px;  
             overflow: hidden;  
             display: flex;  
-            flex-direction: column-reverse;  
+            flex-direction: column-reverse; /* Hace que el fill crezca desde abajo */  
             border: 1px solid #444;  
         }  
   
@@ -152,14 +160,24 @@
             width: 100%;  
             background: linear-gradient(180deg, #0099ff 0%, #00d4ff 100%);  
             display: flex;  
-            align-items: flex-end;  
+            align-items: flex-end; /* Alinear texto al final (arriba cuando crece) */  
             justify-content: center;  
             padding-bottom: 3px;  
             font-size: 0.6em;  
             font-weight: 700;  
             color: #000;  
-            transition: height 0.3s ease;  
+            transition: height 0.3s ease; /* Transición suave al cambiar de altura */  
+            position: relative; /* Para el texto */  
         }  
+        .eval-bar-fill::before { /* Para mostrar el score dentro de la barra */  
+            content: attr(data-score);  
+            position: absolute;  
+            top: 5px; /* Ajusta la posición del texto */  
+            color: #fff; /* Color del texto del score */  
+            font-size: 0.8em;  
+            display: none; /* Por defecto oculto, se puede mostrar con CSS si es necesario */  
+        }  
+  
   
         .eval-bar-fill.white-advantage {  
             background: linear-gradient(180deg, #f0f0f0 0%, #d0d0d0 100%);  
@@ -178,15 +196,16 @@
             text-align: center;  
         }  
   
+        /* Controles de juego */  
         .controls {  
             display: grid;  
-            grid-template-columns: 1fr 1fr 1fr 1fr;  
+            grid-template-columns: 1fr 1fr 1fr 1fr; /* 4 columnas */  
             gap: 10px;  
             background: rgba(0, 212, 255, 0.05);  
             padding: 15px;  
             border-radius: 8px;  
             border: 1px solid rgba(0, 212, 255, 0.2);  
-            max-width: 680px;  
+            max-width: 680px; /* Ancho máximo para que coincida con el tablero + eval bar */  
         }  
   
         .control-group {  
@@ -219,7 +238,7 @@
         }  
   
         button.full-width {  
-            grid-column: span 2;  
+            grid-column: span 2; /* Ocupa 2 columnas */  
         }  
   
         button.secondary {  
@@ -230,13 +249,14 @@
             background: #555;  
         }  
   
+        /* Contenedor de paneles laterales */  
         .panels-container {  
             display: grid;  
-            grid-template-columns: 1fr 1fr;  
+            grid-template-columns: 1fr 1fr; /* Dos columnas */  
             gap: 20px;  
-            flex: 1;  
+            flex: 1; /* Ocupa el espacio restante horizontalmente */  
             overflow: hidden;  
-            min-height: 0;  
+            min-height: 0; /* Necesario para que el overflow-y funcione correctamente */  
         }  
   
         .stats-panel {  
@@ -244,12 +264,13 @@
             border: 1px solid rgba(0, 212, 255, 0.2);  
             border-radius: 8px;  
             padding: 20px;  
-            overflow-y: auto;  
+            overflow-y: auto; /* Scroll individual para cada panel */  
             display: flex;  
             flex-direction: column;  
             gap: 15px;  
         }  
   
+        /* Mensajes del entrenador */  
         .coach-message {  
             background: rgba(0, 212, 255, 0.1);  
             border-left: 4px solid #00d4ff;  
@@ -275,6 +296,17 @@
             background: rgba(255, 0, 0, 0.05);  
         }  
   
+        .coach-message.hint { /* Estilo específico para las pistas */  
+            border-left-color: #ffcc00;  
+            background: rgba(255, 204, 0, 0.05);  
+        }  
+          
+        .coach-message.neutral { /* Para game over (tablas) */  
+            border-left-color: #cccccc;  
+            background: rgba(204, 204, 204, 0.05);  
+        }  
+  
+        /* Información del último movimiento */  
         .last-move-info {  
             display: grid;  
             grid-template-columns: 1fr 1fr;  
@@ -296,6 +328,7 @@
             font-size: 1.1em;  
         }  
   
+        /* Estadísticas rápidas */  
         .stats-quick {  
             display: grid;  
             grid-template-columns: 1fr 1fr 1fr 1fr;  
@@ -322,6 +355,7 @@
             font-size: 0.75em;  
         }  
   
+        /* Historial de movimientos */  
         .move-history {  
             flex: 1;  
             overflow-y: auto;  
@@ -340,6 +374,7 @@
             border-left: 3px solid #00d4ff;  
         }  
   
+        /* Títulos de secciones */  
         h2 {  
             font-size: 1.1em;  
             color: #00d4ff;  
@@ -360,8 +395,9 @@
             font-size: 0.85em;  
         }  
   
+        /* Modal de análisis */  
         .analysis-modal {  
-            display: none;  
+            display: none; /* Oculto por defecto */  
             position: fixed;  
             top: 0;  
             left: 0;  
@@ -425,11 +461,12 @@
         }  
   
         .analysis-box strong {  
-            color: #00ff00;  
+            color: #00ff00; /* Color por defecto, puede cambiar con JS */  
             display: block;  
             font-size: 1.3em;  
         }  
   
+        /* Spinner de carga */  
         .loading {  
             display: inline-block;  
             width: 20px;  
@@ -444,6 +481,7 @@
             to { transform: rotate(360deg); }  
         }  
   
+        /* Media Queries para responsividad */  
         @media (max-width: 1400px) {  
             .chessboard {  
                 width: 500px;  
@@ -465,9 +503,13 @@
   
         @media (max-width: 1200px) {  
             .main-container {  
-                flex-direction: column;  
+                flex-direction: column; /* Apila las secciones */  
                 gap: 15px;  
                 padding: 15px;  
+            }  
+  
+            .board-section {  
+                align-items: center; /* Centra el tablero y controles */  
             }  
   
             .board-and-eval {  
@@ -475,22 +517,22 @@
             }  
   
             .panels-container {  
-                grid-template-columns: 1fr;  
+                grid-template-columns: 1fr; /* Una columna */  
                 gap: 15px;  
-                max-height: 400px;  
+                max-height: 400px; /* Limita la altura para el scroll */  
             }  
   
             .eval-bar-vertical {  
-                display: none;  
+                display: none; /* Oculta la barra de evaluación vertical en pantallas pequeñas */  
             }  
         }  
   
         @media (max-width: 768px) {  
             .chessboard {  
                 width: 100%;  
-                max-width: 450px;  
+                max-width: 450px; /* Limita el tamaño del tablero */  
                 height: auto;  
-                aspect-ratio: 1;  
+                aspect-ratio: 1; /* Mantiene la proporción cuadrada */  
             }  
   
             .square {  
@@ -499,19 +541,15 @@
   
             .controls {  
                 max-width: 100%;  
-                grid-template-columns: 1fr 1fr;  
+                grid-template-columns: 1fr 1fr; /* Controles en dos columnas */  
             }  
   
             button.full-width {  
                 grid-column: span 2;  
             }  
   
-            .eval-bar-vertical {  
-                display: none;  
-            }  
-  
             .stats-quick {  
-                grid-template-columns: 1fr 1fr;  
+                grid-template-columns: 1fr 1fr; /* Stats en dos columnas */  
             }  
   
             .stats-panel {  
@@ -519,6 +557,7 @@
             }  
         }  
   
+        /* Estilos para scrollbar */  
         ::-webkit-scrollbar {  
             width: 8px;  
         }  
@@ -546,7 +585,7 @@
         <div class="board-section">  
             <div class="board-and-eval">  
                 <div class="chessboard" id="board"></div>  
-                  
+  
                 <div class="eval-bar-vertical">  
                     <div class="eval-label">Evaluación</div>  
                     <div class="eval-bar-container">  
@@ -558,10 +597,10 @@
                     </div>  
                 </div>  
             </div>  
-              
+  
             <div class="controls">  
                 <div class="control-group">  
-                    <label>Modo</label>  
+                    <label for="gameMode">Modo</label>  
                     <select id="gameMode" onchange="resetGame()">  
                         <option value="coach">Entrenador</option>  
                         <option value="vs-ia">vs IA</option>  
@@ -569,7 +608,7 @@
                     </select>  
                 </div>  
                 <div class="control-group">  
-                    <label>Nivel</label>  
+                    <label for="difficulty">Nivel IA</label>  
                     <select id="difficulty">  
                         <option value="1">Novato</option>  
                         <option value="2">Intermedio</option>  
@@ -578,18 +617,18 @@
                         <option value="5">Maestro</option>  
                     </select>  
                 </div>  
-                <button onclick="resetGame()" class="full-width">🔄 Nueva</button>  
-                <button onclick="requestHint()" class="full-width">💡 Pista</button>  
+                <button onclick="resetGame()" class="full-width">🔄 Nueva Partida</button>  
+                <button onclick="requestHint()" class="full-width">💡 Obtener Pista</button>  
             </div>  
         </div>  
   
         <div class="panels-container">  
             <div class="stats-panel">  
                 <h2>🎯 Entrenador</h2>  
-                  
+  
+                <!-- Mensaje del entrenador y spinner de pensamiento -->  
                 <div id="coachMessage" class="coach-message">  
-                    <strong>¡Bienvenido!</strong>  
-                    Realiza tu primer movimiento. El entrenador te dará consejos.  
+                    <strong>✅ Motor activado</strong> Analizador profesional en funcionamiento.  
                 </div>  
   
                 <div id="lastMoveInfo" class="last-move-info" style="display: none;">  
@@ -603,13 +642,14 @@
                     </div>  
                 </div>  
   
-               <div id="evaluationDisplay" class="analysis-section" style="padding: 10px; margin-top: 15px;">    
-                    <h3>Análisis de Stockfish</h3>    
-                    <p><strong>Score:</strong> <span id="currentScoreDisplay">N/A</span></p>    
-                    <p><strong>Profundidad:</strong> <span id="currentDepthDisplay">N/A</span></p>    
-                    <p><strong>PV:</strong> <span id="currentPVDisplay">N/A</span></p>    
-                    <p><strong>Mejor Movimiento:</strong> <span id="bestMoveSuggestionDisplay">N/A</span></p>    
-                </div>    
+                <!-- Sección de análisis rápido de Stockfish (Score, Profundidad, PV, Mejor Movimiento) -->  
+               <div id="evaluationDisplay" class="analysis-section" style="padding: 10px; margin-top: 15px;">  
+                    <h3>Análisis Rápido</h3>  
+                    <p><strong>Score:</strong> <span id="currentScoreDisplay">N/A</span></p>  
+                    <p><strong>Profundidad:</strong> <span id="currentDepthDisplay">N/A</span></p>  
+                    <p><strong>Mejor Movimiento:</strong> <span id="bestMoveSuggestionDisplay">N/A</span></p>  
+                    <p><strong>PV:</strong> <span id="currentPVDisplay">N/A</span></p>  
+                </div>  
   
                 <div class="stats-quick">  
                     <div class="stat-quick-box">  
@@ -666,16 +706,17 @@
                     </div>  
                 </div>  
   
-                <button onclick="analysisMode()" class="secondary" style="width: 100%; margin-top: 10px;">📊 Análisis</button>  
+                <button onclick="analysisMode()" class="secondary" style="width: 100%; margin-top: 10px;">📊 Análisis Detallado</button>  
             </div>  
         </div>  
     </div>  
   
+    <!-- Modal de análisis detallado -->  
     <div class="analysis-modal" id="analysisModal">  
         <div class="analysis-content">  
             <span class="analysis-close" onclick="closeAnalysis()">&times;</span>  
             <h2 style="margin-bottom: 20px;">📊 Análisis Detallado de la Posición</h2>  
-              
+  
             <div class="analysis-section">  
                 <h3>🎲 Probabilidades de Resultado</h3>  
                 <div class="analysis-grid">  
@@ -739,31 +780,33 @@
         </div>  
     </div>  
   
-    <!-- CARGA DE SCRIPTS - ¡ORDEN IMPORTA! -->    
-    
+    <!-- CARGA DE SCRIPTS - ¡ORDEN IMPORTA! -->  
+  
     <!-- 1. Carga de Chess.js desde CDN -->  
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/chess.js/0.10.3/chess.min.js"></script>    
-    
-    <!-- 2. CONFIGURAR STOCKFISH ANTES DE CARGARLO -->
-   
-    
-    <!-- 3. Carga del archivo local de Stockfish -->  
-    <script src="/js/stockfish.js"></script>    
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/chess.js/0.10.3/chess.min.js"></script>  
+  
+    <!-- 2. CONFIGURAR STOCKFISH ANTES DE CARGARLO (Este script ya no se usa directamente para Minimax, pero puede ser necesario) -->  
+    <script src="/js/stockfish.js"></script>  
       
-    <!-- 4. Tu lógica de IA que usa Stockfish -->  
-    <script src="/js/stockfish-ai.js"></script>      
-      
-    <!-- 5. Tu lógica principal del juego -->  
-    <script src="/js/game.js"></script>      
-        
+    <!-- 3. Web Worker para los cálculos de Minimax (¡NUEVO!) -->  
+    <!-- Este script es el worker, no debe ejecutarse como un script normal, sino instanciarse. -->  
+    <!-- Lo añadimos aquí para que el navegador sepa dónde encontrarlo. -->  
+    <script src="/js/minimax-worker.js"></script>  
+  
+    <!-- 4. Tu lógica de IA que usa el Web Worker (stockfish-ai.js) -->  
+    <script src="/js/stockfish-ai.js"></script>  
+  
+    <!-- 5. Tu lógica principal del juego (game.js) -->  
+    <script src="/js/game.js"></script>  
+          
     <!-- 6. Tu script de inicialización DOM -->  
-    <script>      
-        document.addEventListener('DOMContentLoaded', async () => {    
-            // Asegúrate de que initializeStockfishEngine y renderBoard se ejecuten antes que updateUI    
-            await initializeStockfishEngine(); // Inicializa Stockfish (de stockfish-ai.js)    
-            renderBoard();                     // Renderiza el tablero (de game.js)    
-            await updateUI();                  // Actualiza la UI    
-        });        
-    </script>        
-</body>        
-</html>
+    <script>  
+        document.addEventListener('DOMContentLoaded', async () => {  
+            // Asegúrate de que initializeStockfishEngine y renderBoard se ejecuten antes que updateUI  
+            await initializeStockfishEngine(); // Inicializa Stockfish (de stockfish-ai.js)  
+            renderBoard();                     // Renderiza el tablero (de game.js)  
+            await updateUI();                  // Actualiza la UI  
+        });  
+    </script>  
+</body>  
+</html>  
