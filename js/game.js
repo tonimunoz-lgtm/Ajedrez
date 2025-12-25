@@ -29,7 +29,8 @@ const coachPhrases = {
     good: ["Buen movimiento.", "Sigue así, buena elección.", "Movimiento sólido."],  
     mistake: ["Hay movimientos mejores.", "No es la mejor opción aquí.", "Cuidado con tu posición."],  
     blunder: ["¡Error grave!", "Pierdes ventaja importante.", "¡Cuidado, este movimiento es malo!"],  
-    hint: ["Considera este movimiento:", "Una buena opción podría ser:", "Analiza esta jugada:"]  
+    hint: ["Considera este movimiento:", "Una buena opción podría ser:", "Analiza esta jugada:"],  
+    aiMove: ["La IA ha realizado su movimiento.", "Turno de la IA completado.", "Movimiento de la máquina."] // Nuevo mensaje para la IA  
 };  
   
   
@@ -183,8 +184,12 @@ async function handleSquareClick(square) {
                             lastFromSquare = aiMove.from;  
                             lastToSquare = aiMove.to;  
                             moveCount++;  
+  
+                            // *** AÑADIDO: Dar feedback sobre el movimiento de la IA ***  
+                            giveCoachFeedback('aiMove'); // Usar el nuevo tipo 'aiMove'  
                         } else {  
                             console.error("La IA no pudo hacer un movimiento o el juego terminó.");  
+                            giveCoachFeedback('bad', "La IA no pudo hacer un movimiento."); // Feedback en caso de error  
                         }  
                         aiThinking = false; // La IA ha terminado de pensar  
                         updateUI(); // Actualizar toda la interfaz después del movimiento de la IA  
@@ -281,7 +286,7 @@ async function evaluateMoveQuality(playerMove) {
   
 /**  
  * Muestra un mensaje de feedback al jugador en el elemento 'coachMessage'.  
- * @param {string} type - Tipo de feedback (ej. 'excellent', 'good', 'mistake', 'blunder', 'hint').  
+ * @param {string} type - Tipo de feedback (ej. 'excellent', 'good', 'mistake', 'blunder', 'hint', 'aiMove').  
  * @param {string} [message=null] - Mensaje específico a mostrar. Si es null, se elige una frase aleatoria.  
  */  
 function giveCoachFeedback(type, message = null) {  
@@ -301,7 +306,7 @@ function giveCoachFeedback(type, message = null) {
     let className = 'coach-message'; // Clase base  
   
     // Asignar icono y clase de estilo según el tipo de feedback  
-    if (type === 'excellent' || type === 'good') {  
+    if (type === 'excellent' || type === 'good' || type === 'aiMove') { // Añadir 'aiMove' aquí  
         icon = '✅';  
         className += ' good';  
     } else if (type === 'mistake' || type === 'blunder') {  
@@ -310,7 +315,7 @@ function giveCoachFeedback(type, message = null) {
     } else if (type === 'hint') {  
         icon = '💡';  
         className += ' hint'; // Clase específica para las pistas  
-    } else if (type === 'neutral') { // Para resultados de tablas, etc.  
+    } else if (type === 'neutral') { // Para game over (tablas)  
         icon = '🤝';  
         className += ' neutral';  
     }  
@@ -805,6 +810,5 @@ window.requestHint = requestHint;
 window.analysisMode = analysisMode;  
 window.closeAnalysis = closeAnalysis;  
 window.convertPvUciToSan = convertPvUciToSan;  
-// Exponer evaluatePositionLocal para el fallback en analysisMode  
+// Exportar evaluatePositionLocal para que game.js pueda usarla como fallback si es necesario  
 window.evaluatePositionLocal = window.evaluatePositionLocal || null; // Asegurarse de que esté definida, si stockfish-ai.js la exporta  
-  
